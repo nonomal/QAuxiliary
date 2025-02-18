@@ -25,13 +25,23 @@ import static io.github.qauxv.util.Initiator.load;
 
 import android.app.Activity;
 import android.content.Context;
+import android.text.TextUtils;
 import android.view.View;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import cc.hicore.QApp.QAppUtils;
+import cc.hicore.ReflectUtil.XField;
+import cc.hicore.ReflectUtil.XMethod;
+import cc.hicore.Utils.FunProtoData;
+import cc.ioctl.util.HookUtils;
 import cc.ioctl.util.Reflex;
-import de.robv.android.xposed.XC_MethodHook;
-import de.robv.android.xposed.XposedBridge;
-import de.robv.android.xposed.XposedHelpers;
+import com.tencent.qphone.base.remote.FromServiceMsg;
+import com.tencent.qqnt.kernel.nativeinterface.PicElement;
+import com.xiaoniu.dispatcher.OnMenuBuilder;
+import com.xiaoniu.util.ContextUtils;
+import io.github.qauxv.util.xpcompat.XC_MethodHook;
+import io.github.qauxv.util.xpcompat.XposedBridge;
+import io.github.qauxv.util.xpcompat.XposedHelpers;
 import io.github.qauxv.R;
 import io.github.qauxv.base.annotation.FunctionHookEntry;
 import io.github.qauxv.base.annotation.UiItemAgentEntry;
@@ -42,18 +52,29 @@ import io.github.qauxv.util.CustomMenu;
 import io.github.qauxv.util.Initiator;
 import io.github.qauxv.util.LicenseStatus;
 import io.github.qauxv.util.Toasts;
+import io.github.qauxv.util.dexkit.AbstractQQCustomMenuItem;
+import io.github.qauxv.util.dexkit.DexKitTarget;
 import java.lang.reflect.Array;
 import java.lang.reflect.Method;
+import java.util.Arrays;
+import java.util.List;
+import kotlin.Unit;
+import org.json.JSONObject;
 import xyz.nextalone.util.SystemServiceUtils;
 
 @FunctionHookEntry
 @UiItemAgentEntry
-public class PicMd5Hook extends CommonSwitchFunctionHook {
+public class PicMd5Hook extends CommonSwitchFunctionHook implements OnMenuBuilder {
 
     public static final PicMd5Hook INSTANCE = new PicMd5Hook();
 
     private PicMd5Hook() {
+        super(new DexKitTarget[]{AbstractQQCustomMenuItem.INSTANCE});
     }
+
+    public static String rkey_group;
+
+    public static String rkey_private;
 
     @NonNull
     @Override
@@ -75,6 +96,30 @@ public class PicMd5Hook extends CommonSwitchFunctionHook {
 
     @Override
     public boolean initOnce() throws Exception {
+
+        HookUtils.hookBeforeIfEnabled(this, XMethod.clz("mqq.app.msghandle.MsgRespHandler").name("dispatchRespMsg").ignoreParam().get(), param -> {
+            FromServiceMsg fromServiceMsg = XField.obj(param.args[1]).name("fromServiceMsg").get();
+
+            if ("OidbSvcTrpcTcp.0x9067_202".equals(fromServiceMsg.getServiceCmd())) {
+                FunProtoData data = new FunProtoData();
+                data.fromBytes(getUnpPackage(fromServiceMsg.getWupBuffer()));
+
+                JSONObject obj = data.toJSON();
+                rkey_group = obj.getJSONObject("4")
+                        .getJSONObject("4")
+                        .getJSONArray("1")
+                        .getJSONObject(0).getString("1");
+
+                rkey_private = obj.getJSONObject("4")
+                        .getJSONObject("4")
+                        .getJSONArray("1")
+                        .getJSONObject(1).getString("1");
+            }
+        });
+
+        if (QAppUtils.isQQnt()) {
+            return true;
+        }
         Class<?> cl_PicItemBuilder = Initiator._PicItemBuilder();
         Class<?> cl_BasePicItemBuilder = cl_PicItemBuilder.getSuperclass();
         try {
@@ -105,7 +150,42 @@ public class PicMd5Hook extends CommonSwitchFunctionHook {
                 break;
             }
         }
+
         return true;
+    }
+
+    @NonNull
+    @Override
+    public String[] getTargetComponentTypes() {
+        return new String[]{
+                "com.tencent.mobileqq.aio.msglist.holder.component.pic.AIOPicContentComponent"
+        };
+    }
+
+    @Override
+    public void onGetMenuNt(@NonNull Object msg, @NonNull String componentType, @NonNull XC_MethodHook.MethodHookParam param) throws Exception {
+        if (!isEnabled()) {
+            return;
+        }
+        Object item = CustomMenu.createItemIconNt(msg, "MD5", R.drawable.ic_item_md5_72dp, R.id.item_showPicMd5, () -> {
+            try {
+                Method getElement = null;
+                for (Method m : msg.getClass().getDeclaredMethods()) {
+                    if (m.getReturnType() == PicElement.class) {
+                        getElement = m;
+                        break;
+                    }
+                }
+                PicElement element = (PicElement) getElement.invoke(msg);
+                String md5 = element.getMd5HexStr().toUpperCase();
+                showMd5Dialog(ContextUtils.getCurrentActivity(), md5, element);
+            } catch (Throwable e) {
+                traceError(e);
+            }
+            return Unit.INSTANCE;
+        });
+        List list = (List) param.getResult();
+        list.add(item);
     }
 
     public static class GetMenuItemCallBack extends XC_MethodHook {
@@ -155,16 +235,11 @@ public class PicMd5Hook extends CommonSwitchFunctionHook {
                     final String md5;
                     if (chatMessage == null
                             || (md5 = (String) Reflex.getInstanceObjectOrNull(chatMessage, "md5")) == null
-                            || md5.length() == 0) {
+                            || md5.isEmpty()) {
                         Toasts.error(ctx, "获取图片MD5失败");
                         return;
                     }
-                    CustomDialog.createFailsafe(ctx).setTitle("MD5").setCancelable(true)
-                            .setMessage(md5).setPositiveButton("复制",
-                                    (dialog, which) -> SystemServiceUtils.copyToClipboard(ctx, md5))
-                            .setNeutralButton("复制图片链接",
-                                    (dialog, which) -> SystemServiceUtils.copyToClipboard(ctx, getPicturePath(md5)))
-                            .setNegativeButton("关闭", null).show();
+                    showMd5Dialog(ctx, md5, null);
                 } catch (Throwable e) {
                     INSTANCE.traceError(e);
                     Toasts.error(ctx, e.toString().replace("java.lang.", ""));
@@ -173,7 +248,51 @@ public class PicMd5Hook extends CommonSwitchFunctionHook {
         }
     }
 
-    private static String getPicturePath(@NonNull String md5) {
-        return "https://gchat.qpic.cn/gchatpic_new/0/0-0-" + md5 + "/0";
+    private static void showMd5Dialog(Context ctx, String md5, PicElement element) {
+        CustomDialog.createFailsafe(ctx).setTitle("MD5").setCancelable(true)
+                .setMessage(md5).setPositiveButton("复制",
+                        (dialog, which) -> SystemServiceUtils.copyToClipboard(ctx, md5))
+                .setNeutralButton("复制图片链接",
+                        (dialog, which) -> SystemServiceUtils.copyToClipboard(ctx, getPicturePath(md5, element)))
+                .setNegativeButton("关闭", null).show();
+    }
+
+    private static String getPicturePath(@NonNull String md5, PicElement element) {
+        if (element == null) {
+            // legacy
+            return "https://gchat.qpic.cn/gchatpic_new/0/0-0-" + md5 + "/0";
+        }
+        // java/cc/hicore/hook/stickerPanel/Hooker/StickerPanelEntryHooker.java #190
+        String url;
+        String originUrl = element.getOriginImageUrl();
+        if (TextUtils.isEmpty(originUrl)) {
+            url = "https://gchat.qpic.cn/gchatpic_new/0/0-0-" + md5 + "/0";
+        } else {
+            if (originUrl.startsWith("/download")) {
+                if (originUrl.contains("appid=1406")) {
+                    url = "https://multimedia.nt.qq.com.cn" + originUrl + rkey_group;
+                } else {
+                    url = "https://multimedia.nt.qq.com.cn" + originUrl + rkey_private;
+                }
+            } else {
+                url = "https://gchat.qpic.cn" + element.getOriginImageUrl();
+            }
+        }
+        return url;
+    }
+
+
+    private static byte[] getUnpPackage(byte[] b) {
+        if (b == null) {
+            return null;
+        }
+        if (b.length < 4) {
+            return b;
+        }
+        if (b[0] == 0) {
+            return Arrays.copyOfRange(b, 4, b.length);
+        } else {
+            return b;
+        }
     }
 }

@@ -21,15 +21,23 @@
  */
 package xyz.nextalone.hook
 
-import de.robv.android.xposed.XC_MethodHook
+import cc.hicore.QApp.QAppUtils
+import com.github.kyuubiran.ezxhelper.utils.getFieldByType
+import com.github.kyuubiran.ezxhelper.utils.hookBefore
+import com.github.kyuubiran.ezxhelper.utils.isAbstract
+import com.github.kyuubiran.ezxhelper.utils.paramCount
 import io.github.qauxv.base.annotation.FunctionHookEntry
 import io.github.qauxv.base.annotation.UiItemAgentEntry
 import io.github.qauxv.dsl.FunctionEntryRouter
+import io.github.qauxv.util.QQVersion
+import io.github.qauxv.util.TIMVersion
+import io.github.qauxv.util.requireMinQQVersion
+import io.github.qauxv.util.requireMinTimVersion
 import xyz.nextalone.base.MultiItemDelayableHook
 import xyz.nextalone.util.clazz
-import xyz.nextalone.util.hookBefore
 import xyz.nextalone.util.method
 import xyz.nextalone.util.throwOrTrue
+import java.lang.reflect.Method
 
 @FunctionHookEntry
 @UiItemAgentEntry
@@ -41,6 +49,7 @@ object SimplifyChatLongItem : MultiItemDelayableHook("na_simplify_chat_long_item
         "转发",
         "收藏",
         "回复",
+        "引用",
         "多选",
         "撤回",
         "删除",
@@ -59,34 +68,55 @@ object SimplifyChatLongItem : MultiItemDelayableHook("na_simplify_chat_long_item
         "转发文字",
         "免提播放",
         "2X",
-        "保存"
+        "保存",
+        "群待办",
+        "提醒",
+        "装扮",
     )
     override val defaultItems = setOf<String>()
 
     override val uiItemLocation = FunctionEntryRouter.Locations.Simplify.UI_CHAT_MSG
 
+    private var getName: Method? = null
+
     override fun initOnce() = throwOrTrue {
-        val callback: (XC_MethodHook.MethodHookParam) -> Unit = callback@{
-            if (!isEnabled) return@callback
-            val str = it.args[1] as String
-            if (activeItems.contains(str))
-                it.result = null
-        }
-        "com.tencent.mobileqq.utils.dialogutils.QQCustomMenuImageLayout".clazz?.declaredMethods.run {
-            this?.forEach { method ->
-                if (method.name == "setMenu") {
-                    val customMenu = method.parameterTypes[0].name
-                    runCatching {
-                        customMenu.clazz?.method {
-                            it.parameterTypes.contentEquals(arrayOf(Int::class.java, String::class.java, Int::class.java, Int::class.java))
-                        }?.hookBefore(this@SimplifyChatLongItem, callback)
+        if (QAppUtils.isQQnt() || requireMinTimVersion(TIMVersion.TIM_4_0_95_BETA)) {
+            mutableListOf("com/tencent/qqnt/aio/menu/ui/QQCustomMenuNoIconLayout").apply {
+                if (requireMinQQVersion(QQVersion.QQ_9_0_0) || requireMinTimVersion(TIMVersion.TIM_4_0_95_BETA)) {
+                    add(0, "com/tencent/qqnt/aio/menu/ui/QQCustomMenuExpandableLayout")
+                }
+            }.firstNotNullOf { it.clazz }
+                .method("setMenu")!!
+                .hookBefore {
+                    val list = it.args[0].javaClass.getFieldByType(List::class.java).get(it.args[0]) as MutableList<*>
+                    if (list.isEmpty()) return@hookBefore
+                    if (getName == null) {
+                        getName = list[0]?.javaClass!!.superclass!!.declaredMethods.last { m ->
+                            m.returnType == String::class.java && m.isAbstract
+                        }!!
                     }
-                    runCatching {
-                        customMenu.clazz?.method {
-                            it.parameterTypes.contentEquals(arrayOf(Int::class.java, String::class.java, Int::class.java))
-                        }?.hookBefore(this@SimplifyChatLongItem, callback)
+                    list.forEach { item ->
+                        val str = getName!!.invoke(item)!! as String
+                        if (activeItems.contains(str))
+                            list.remove(item)
                     }
-                    return@forEach
+                }
+        } else {
+            "com.tencent.mobileqq.utils.dialogutils.QQCustomMenuImageLayout".clazz?.declaredMethods.run {
+                this?.forEach { method ->
+                    if (method.name == "setMenu") {
+                        val customMenu = method.parameterTypes[0].name
+                        runCatching {
+                            customMenu.clazz?.method {
+                                it.paramCount == 1 && it.parameterTypes[0] != String::class.java && it.returnType == Void.TYPE
+                            }?.hookBefore {
+                                val str = it.args[0].getFieldByType(String::class.java).get(it.args[0]) as String
+                                if (activeItems.contains(str))
+                                    it.result = null
+                            }
+                        }
+                        return@forEach
+                    }
                 }
             }
         }

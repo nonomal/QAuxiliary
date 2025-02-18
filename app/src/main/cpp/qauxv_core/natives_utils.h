@@ -4,8 +4,10 @@
 #include <jni.h>
 #include <stdint.h>
 
-#define EXPORT extern "C" __attribute__((visibility("default")))
-//#define null nullptr
+#define EXPORT __attribute__((visibility("default")))
+
+#define NOINLINE __attribute__((noinline))
+
 typedef unsigned char uchar;
 
 //Android is little endian, use pointer
@@ -26,7 +28,5 @@ inline int max(int a, int b) {
 }
 
 extern "C" jint MMKV_JNI_OnLoad(JavaVM *vm, void *reserved);
-
-extern "C" jint BILI_JNI_OnLoad(JavaVM *vm, void *reserved);
 
 #endif //NATIVES_NATIVES_UTILS_H

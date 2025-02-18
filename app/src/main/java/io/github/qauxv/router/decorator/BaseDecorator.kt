@@ -45,13 +45,6 @@ abstract class BaseDecorator(
 
     override val isInitializationSuccessful: Boolean get() = dispatcher.isInitializationSuccessful
 
-    override val runtimeErrors: List<Throwable>
-        get() {
-            val myErrors = super.runtimeErrors
-            val dispatcherErrors = dispatcher.runtimeErrors
-            return myErrors + dispatcherErrors
-        }
-
     override val isAvailable: Boolean get() = dispatcher.isAvailable
 
     override val targetProcesses: Int get() = dispatcher.targetProcesses
@@ -59,8 +52,8 @@ abstract class BaseDecorator(
     override val isPreparationRequired: Boolean get() = dispatcher.isPreparationRequired || super.isPreparationRequired
 
     private fun <T> mergeArray(a1: Array<T>?, a2: Array<T>?): Array<T>? {
-        if (a1 == null || a1.isEmpty()) return a2
-        if (a2 == null || a2.isEmpty()) return a1
+        if (a1.isNullOrEmpty()) return a2
+        if (a2.isNullOrEmpty()) return a1
         return a1 + a2
     }
 

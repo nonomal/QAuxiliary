@@ -21,7 +21,10 @@
  */
 package cc.ioctl.hook.chat;
 
+import static cc.ioctl.util.HostInfo.requireMinQQVersion;
+
 import androidx.annotation.NonNull;
+import cc.hicore.QApp.QAppUtils;
 import cc.ioctl.util.HookUtils;
 import cc.ioctl.util.Reflex;
 import io.github.qauxv.base.annotation.FunctionHookEntry;
@@ -29,6 +32,7 @@ import io.github.qauxv.base.annotation.UiItemAgentEntry;
 import io.github.qauxv.dsl.FunctionEntryRouter.Locations.Simplify;
 import io.github.qauxv.hook.CommonSwitchFunctionHook;
 import io.github.qauxv.util.Initiator;
+import io.github.qauxv.util.QQVersion;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 
@@ -62,7 +66,17 @@ public class DisableDropSticker extends CommonSwitchFunctionHook {
 
     @Override
     public boolean initOnce() throws ReflectiveOperationException {
-        Class<?> kAioAnimationConfigHelper = Initiator.loadClass("com.tencent.mobileqq.activity.aio.anim.AioAnimationConfigHelper");
+        String className;
+        if (requireMinQQVersion(QQVersion.QQ_9_0_60)) { // 9.0.60~9.0.70
+            className = "com.tencent.mobileqq.aio.animation.util.b";
+        } else if (requireMinQQVersion(QQVersion.QQ_9_0_15)) { // 9.0.15~9.0.56
+            className = "com.tencent.mobileqq.aio.animation.util.d";
+        } else if (QAppUtils.isQQnt()) {
+            className = "com.tencent.mobileqq.aio.animation.util.AioAnimationConfigHelper";
+        } else {
+            className = "com.tencent.mobileqq.activity.aio.anim.AioAnimationConfigHelper";
+        }
+        Class<?> kAioAnimationConfigHelper = Initiator.loadClass(className);
         Method doParseRules = Reflex.findSingleMethod(kAioAnimationConfigHelper, ArrayList.class, false, org.xmlpull.v1.XmlPullParser.class);
         HookUtils.hookBeforeIfEnabled(this, doParseRules, param -> param.setResult(new ArrayList<>()));
         return true;

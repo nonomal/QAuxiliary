@@ -4,25 +4,27 @@
  * https://github.com/cinit/QAuxiliary
  *
  * This software is non-free but opensource software: you can redistribute it
- * and/or modify it under the terms of the GNU Affero General Public License
- * as published by the Free Software Foundation; either
- * version 3 of the License, or any later version and our eula as published
+ * and/or modify it under the terms of the qwq233 Universal License
+ * as published on https://github.com/qwq233/license; either
+ * version 2 of the License, or any later version and our EULA as published
  * by QAuxiliary contributors.
  *
  * This software is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Affero General Public License for more details.
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See the qwq233 Universal License for more details.
  *
- * You should have received a copy of the GNU Affero General Public License
- * and eula along with this software.  If not, see
- * <https://www.gnu.org/licenses/>
+ * See
+ * <https://github.com/qwq233/license>
  * <https://github.com/cinit/QAuxiliary/blob/master/LICENSE.md>.
  */
 
 package cc.ioctl.hook.mini
 
 import cc.ioctl.util.hookBeforeIfEnabled
+import com.github.kyuubiran.ezxhelper.utils.findMethod
+import com.github.kyuubiran.ezxhelper.utils.hookBefore
+import com.github.kyuubiran.ezxhelper.utils.paramCount
 import io.github.qauxv.base.annotation.FunctionHookEntry
 import io.github.qauxv.base.annotation.UiItemAgentEntry
 import io.github.qauxv.dsl.FunctionEntryRouter
@@ -49,10 +51,18 @@ object HideMiniAppLoadingAd : CommonSwitchFunctionHook(
         get() = requireMinQQVersion(QQVersion.QQ_8_3_9) || requireMinTimVersion(TIMVersion.TIM_3_5_0)
 
     override fun initOnce(): Boolean {
-        val kMiniLoadingAdManager = Initiator.loadClass("com.tencent.qqmini.sdk.manager.MiniLoadingAdManager")
-        val method = kMiniLoadingAdManager.declaredMethods.single { it.name == "updateLoadingAdLayoutAndShow" }
-        hookBeforeIfEnabled(method) { param ->
-            param.result = null
+        try {
+            Initiator.loadClass("com.tencent.mobileqq.mini.helper.MiniAdExposureHelper").findMethod {
+                    name == "checkAdExpoFreqAvailable" && paramCount == 0
+                }.hookBefore { param ->
+                    param.result = false
+                }
+        } catch (_: Exception) {
+            val kMiniLoadingAdManager = Initiator.loadClass("com.tencent.qqmini.sdk.manager.MiniLoadingAdManager")
+            val method = kMiniLoadingAdManager.declaredMethods.single { it.name == "updateLoadingAdLayoutAndShow" }
+            hookBeforeIfEnabled(method) { param ->
+                param.result = null
+            }
         }
         return true
     }

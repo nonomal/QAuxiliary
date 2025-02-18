@@ -24,7 +24,7 @@ package io.github.qauxv.util.dexkit
 
 import android.os.Bundle
 import android.view.View
-import android.widget.TextView
+import android.view.ViewGroup
 import cc.ioctl.util.HostInfo
 import com.github.kyuubiran.ezxhelper.utils.isAbstract
 import com.github.kyuubiran.ezxhelper.utils.isFinal
@@ -42,6 +42,8 @@ import io.github.qauxv.util.Initiator._TroopChatPie
 import io.github.qauxv.util.Initiator.getHostClassLoader
 import io.github.qauxv.util.Initiator.load
 import io.github.qauxv.util.Log
+import io.github.qauxv.util.QQVersion
+import io.github.qauxv.util.requireMinQQVersion
 import me.ketal.data.ConfigData
 import mqq.app.AppRuntime
 
@@ -51,6 +53,11 @@ sealed class DexKitTarget {
     sealed class UsingStr : DexKitTarget() {
         // with 'OR' relationship
         abstract val traitString: Array<String>
+    }
+
+    sealed class UsingStringVector : DexKitTarget() {
+        // relationship: ((v[0][0] && v[0][1] && ..) || (v[1][0] && v[1][1] && ..) || ..)
+        abstract val traitStringVectors: Array<Array<String>>
     }
 
     sealed class UsingDexkit : DexKitTarget()
@@ -63,6 +70,10 @@ sealed class DexKitTarget {
     var descCache: String?
         get() = descCacheKey.value
         set(value) {
+            if (!value.isNullOrEmpty()) {
+                // check if the value is valid
+                DexMethodDescriptor(value)
+            }
             descCacheKey.value = value
         }
 
@@ -89,25 +100,25 @@ sealed class DexKitTarget {
     companion object
 }
 
-object CDialogUtil : DexKitTarget.UsingStr() {
+data object CDialogUtil : DexKitTarget.UsingStr() {
     override val declaringClass = "com/tencent/mobileqq/utils/DialogUtil"
     override val traitString = arrayOf("android.permission.SEND_SMS")
     override val filter = DexKitFilter.allStaticFields and DexKitFilter.clinit
 }
 
-object CFaceDe : DexKitTarget.UsingStr() {
+data object CFaceDe : DexKitTarget.UsingStr() {
     override val declaringClass = "com/tencent/mobileqq/activity/ChatActivityFacade"
     override val traitString = arrayOf("reSendEmo")
     override val filter = DexKitFilter.allStaticFields
 }
 
-object CFlashPicHelper : DexKitTarget.UsingStr() {
+data object CFlashPicHelper : DexKitTarget.UsingStr() {
     override val declaringClass = "com.tencent.mobileqq.app.FlashPicHelper"
     override val traitString = arrayOf("FlashPicHelper")
     override val filter = DexKitFilter.allStaticFields
 }
 
-object CBasePicDlProcessor : DexKitTarget.UsingStr() {
+data object CBasePicDlProcessor : DexKitTarget.UsingStr() {
     override val declaringClass = "com/tencent/mobileqq/transfile/BasePicDownloadProcessor"
     override val traitString = arrayOf("BasePicDownloadProcessor.onSuccess():Delete ")
     override val filter = filter@{ it: DexMethodDescriptor ->
@@ -116,7 +127,7 @@ object CBasePicDlProcessor : DexKitTarget.UsingStr() {
     }
 }
 
-object CItemBuilderFactory : DexKitTarget.UsingStr() {
+data object CItemBuilderFactory : DexKitTarget.UsingStr() {
     override val declaringClass = "com/tencent/mobileqq/activity/aio/item/ItemBuilderFactory"
     override val traitString = arrayOf("ItemBuilder is: D", "findItemBuilder: invoked.")
     override val filter = filter@{ it: DexMethodDescriptor ->
@@ -125,13 +136,13 @@ object CItemBuilderFactory : DexKitTarget.UsingStr() {
     }
 }
 
-object CAIOUtils : DexKitTarget.UsingStr() {
+data object CAIOUtils : DexKitTarget.UsingStr() {
     override val declaringClass = "com.tencent.mobileqq.activity.aio.AIOUtils"
     override val traitString = arrayOf("openAIO by MT")
     override val filter = DexKitFilter.allStaticFields
 }
 
-object CAbsGalScene : DexKitTarget.UsingStr() {
+data object CAbsGalScene : DexKitTarget.UsingStr() {
     override val declaringClass = "com/tencent/common/galleryactivity/AbstractGalleryScene"
     override val traitString = arrayOf("gallery setColor bl")
     override val filter = filter@{ it: DexMethodDescriptor ->
@@ -140,7 +151,7 @@ object CAbsGalScene : DexKitTarget.UsingStr() {
     }
 }
 
-object CFavEmoConst : DexKitTarget.UsingStr() {
+data object CFavEmoConst : DexKitTarget.UsingStr() {
     override val declaringClass = "com/tencent/mobileqq/emosm/favroaming/FavEmoConstant"
     override val traitString = arrayOf("http://p.qpic.", "https://p.qpic.")
     override val filter = filter@{ it: DexMethodDescriptor ->
@@ -149,7 +160,7 @@ object CFavEmoConst : DexKitTarget.UsingStr() {
     }
 }
 
-object CMessageRecordFactory : DexKitTarget.UsingStr() {
+data object CMessageRecordFactory : DexKitTarget.UsingStr() {
     override val declaringClass = "com.tencent.mobileqq.service.message.MessageRecordFactory"
     override val traitString = arrayOf("createPicMessage")
     override val filter = filter@{ it: DexMethodDescriptor ->
@@ -158,7 +169,7 @@ object CMessageRecordFactory : DexKitTarget.UsingStr() {
     }
 }
 
-object CArkAppItemBubbleBuilder : DexKitTarget.UsingStr() {
+data object CArkAppItemBubbleBuilder : DexKitTarget.UsingStr() {
     override val declaringClass = "com/tencent/mobileqq/activity/aio/item/ArkAppItemBubbleBuilder"
     override val traitString = arrayOf("debugArkMeta = ")
     override val filter = filter@{ it: DexMethodDescriptor ->
@@ -168,7 +179,7 @@ object CArkAppItemBubbleBuilder : DexKitTarget.UsingStr() {
     }
 }
 
-object CPngFrameUtil : DexKitTarget.UsingStr() {
+data object CPngFrameUtil : DexKitTarget.UsingStr() {
     override val declaringClass = "com.tencent.mobileqq.magicface.drawable.PngFrameUtil"
     override val traitString = arrayOf("func checkRandomPngEx")
     override val filter = filter@{ it: DexMethodDescriptor ->
@@ -178,7 +189,7 @@ object CPngFrameUtil : DexKitTarget.UsingStr() {
     }
 }
 
-object CPicEmoticonInfo : DexKitTarget.UsingStr() {
+data object CPicEmoticonInfo : DexKitTarget.UsingStr() {
     override val declaringClass = "com.tencent.mobileqq.emoticonview.PicEmoticonInfo"
     override val traitString = arrayOf("send emotion + 1:")
     override val filter = DexKitFilter.strInClsName("com/tencent/mobileqq/emoticonview") or
@@ -191,20 +202,20 @@ object CPicEmoticonInfo : DexKitTarget.UsingStr() {
         }
 }
 
-object CSimpleUiUtil : DexKitTarget.UsingStr() {
+data object CSimpleUiUtil : DexKitTarget.UsingStr() {
     // dummy, placeholder, just a guess
     override val declaringClass = "com.tencent.mobileqq.theme.SimpleUIUtil"
     override val traitString = arrayOf("key_simple_status_s")
     override val filter = DexKitFilter.allStaticFields
 }
 
-object CTroopGiftUtil : DexKitTarget.UsingStr() {
+data object CTroopGiftUtil : DexKitTarget.UsingStr() {
     override val declaringClass = "com/tencent/mobileqq/troop/utils/TroopGiftUtil"
     override val traitString = arrayOf(".troop.send_giftTroopUtils", ".troop.send_giftTroopMemberUtil")
     override val filter = DexKitFilter.allStaticFields
 }
 
-object CQzoneMsgNotify : DexKitTarget.UsingStr() {
+data object CQzoneMsgNotify : DexKitTarget.UsingStr() {
     override val declaringClass = "cooperation/qzone/push/MsgNotification"
     override val traitString = arrayOf("use small icon ,exp:")
     override val filter = filter@{ it: DexMethodDescriptor ->
@@ -218,7 +229,7 @@ object CQzoneMsgNotify : DexKitTarget.UsingStr() {
     }
 }
 
-object CAppConstants : DexKitTarget.UsingStr() {
+data object CAppConstants : DexKitTarget.UsingStr() {
     override val declaringClass = "com.tencent.mobileqq.app.AppConstants"
     override val traitString = arrayOf(".indivAnim/")
     override val filter = filter@{ it: DexMethodDescriptor ->
@@ -227,26 +238,27 @@ object CAppConstants : DexKitTarget.UsingStr() {
     }
 }
 
-object CMessageCache : DexKitTarget.UsingStr() {
+data object CMessageCache : DexKitTarget.UsingStr() {
     override val declaringClass = "com/tencent/mobileqq/service/message/MessageCache"
     override val traitString = arrayOf("Q.msg.MessageCache")
     override val filter = filter@{ it: DexMethodDescriptor -> "<clinit>" == it.name }
 }
 
-object CScreenShotHelper : DexKitTarget.UsingStr() {
+data object CScreenShotHelper : DexKitTarget.UsingStr() {
     override val declaringClass = "com.tencent.mobileqq.screendetect.ScreenShotHelper"
     override val traitString = arrayOf("onActivityResumeHideFloatView")
     override val filter = DexKitFilter.notHasSuper
 }
 
-object CTimeFormatterUtils : DexKitTarget.UsingStr() {
+data object CTimeFormatterUtils : DexKitTarget.UsingStr() {
     override val declaringClass = "com.tencent.mobileqq.utils.TimeFormatterUtils"
+
     // old: arrayOf("TimeFormatterUtils")
     override val traitString = arrayOf("^EEEE$")
     override val filter = DexKitFilter.allStaticFields
 }
 
-object CGroupAppActivity : DexKitTarget.UsingStr() {
+data object CGroupAppActivity : DexKitTarget.UsingStr() {
     override val declaringClass = "com/tencent/mobileqq/activity/aio/drawer/TroopAppShortcutDrawer"
     override val traitString = arrayOf("onDrawerStartOpen")
     override val filter = DexKitFilter.hasSuper and
@@ -256,25 +268,25 @@ object CGroupAppActivity : DexKitTarget.UsingStr() {
         }
 }
 
-object CIntimateDrawer : DexKitTarget.UsingStr() {
+data object CIntimateDrawer : DexKitTarget.UsingStr() {
     override val declaringClass = "com/tencent/mobileqq/activity/aio/drawer/IntimateInfoChatDrawer"
     override val traitString = arrayOf("onDrawerOpened, needReqIntimateInfo: %s")
     override val filter = DexKitFilter.hasSuper
 }
 
-object CZipUtils : DexKitTarget.UsingStr() {
+data object CZipUtils : DexKitTarget.UsingStr() {
     override val declaringClass = "com/tencent/biz/common/util/ZipUtils"
     override val traitString = arrayOf(",ZipEntry name: ")
     override val filter = DexKitFilter.allStaticFields
 }
 
-object CHttpDownloader : DexKitTarget.UsingStr() {
+data object CHttpDownloader : DexKitTarget.UsingStr() {
     override val declaringClass = "com/tencent/mobileqq/transfile/HttpDownloader"
     override val traitString = arrayOf("[reportHttpsResult] url=")
     override val filter = DexKitFilter.notHasSuper
 }
 
-object CMultiMsgManager : DexKitTarget.UsingStr() {
+data object CMultiMsgManager : DexKitTarget.UsingStr() {
     override val declaringClass = "com/tencent/mobileqq/multimsg/MultiMsgManager"
     override val traitString = arrayOf("[sendMultiMsg]data.length = ")
     override val filter = DexKitFilter.filterByParams {
@@ -282,25 +294,25 @@ object CMultiMsgManager : DexKitTarget.UsingStr() {
     }
 }
 
-object CAvatarUtil : DexKitTarget.UsingStr() {
+data object CAvatarUtil : DexKitTarget.UsingStr() {
     override val declaringClass = "com.tencent.mobileqq.avatar.utils.AvatarUtil"
     override val traitString = arrayOf("===getDiscussionUinFromPstn pstnDiscussionUin is null ===")
     override val filter = DexKitFilter.notHasSuper
 }
 
-object CFaceManager : DexKitTarget.UsingStr() {
+data object CFaceManager : DexKitTarget.UsingStr() {
     override val declaringClass = "com.tencent.mobileqq.app.face.FaceManager"
     override val traitString = arrayOf("FaceManager")
     override val filter = DexKitFilter.notHasSuper
 }
 
-object CAIOPictureView : DexKitTarget.UsingStr() {
+data object CAIOPictureView : DexKitTarget.UsingStr() {
     override val declaringClass = "com.tencent.mobileqq.richmediabrowser.view.AIOPictureView"
     override val traitString = arrayOf("AIOPictureView", "AIOGalleryPicView")
     override val filter = DexKitFilter.hasSuper
 }
 
-object CGalleryBaseScene : DexKitTarget.UsingStr() {
+data object CGalleryBaseScene : DexKitTarget.UsingStr() {
     // guess
     override val declaringClass = "com.tencent.mobileqq.gallery.view.GalleryBaseScene"
     override val traitString = arrayOf("GalleryBaseScene")
@@ -310,13 +322,13 @@ object CGalleryBaseScene : DexKitTarget.UsingStr() {
     }
 }
 
-object CGuildHelperProvider : DexKitTarget.UsingStr() {
+data object CGuildHelperProvider : DexKitTarget.UsingStr() {
     override val declaringClass = "com.tencent.mobileqq.guild.chatpie.GuildHelperProvider"
     override val traitString = arrayOf("^GuildHelperProvider$")
     override val filter = DexKitFilter.strInClsName("com/tencent/mobileqq/guild/chatpie")
 }
 
-object CGuildArkHelper : DexKitTarget.UsingStr() {
+data object CGuildArkHelper : DexKitTarget.UsingStr() {
     override val declaringClass = "com.tencent.mobileqq.guild.chatpie.helper.GuildArkHelper"
     override val traitString = arrayOf("GuildArkHelper")
     override val filter = filter@{ it: DexMethodDescriptor ->
@@ -325,7 +337,7 @@ object CGuildArkHelper : DexKitTarget.UsingStr() {
     }
 }
 
-object CReplyMsgUtils : DexKitTarget.UsingStr() {
+data object CReplyMsgUtils : DexKitTarget.UsingStr() {
     override val declaringClass = "com.tencent.mobileqq.activity.aio.reply.ReplyMsgUtils"
     override val traitString = arrayOf("generateSourceInfo sender uin exception:")
     override val filter = DexKitFilter.filterByParams {
@@ -333,56 +345,76 @@ object CReplyMsgUtils : DexKitTarget.UsingStr() {
     }
 }
 
-object CReplyMsgSender : DexKitTarget.UsingStr() {
+data object CReplyMsgSender : DexKitTarget.UsingStr() {
     override val declaringClass = "com.tencent.mobileqq.replymsg.ReplyMsgSender"
     override val traitString = arrayOf("sendReplyMessage uniseq=0")
     override val filter = DexKitFilter.strInClsName("com/tencent/mobileqq/replymsg/") or DexKitFilter.defpackage
 }
 
-object CPopOutEmoticonUtil : DexKitTarget.UsingStr() {
+data object CPopOutEmoticonUtil : DexKitTarget.UsingStr() {
     override val declaringClass = "com.tencent.mobileqq.popanim.util.PopOutEmoticonUtil"
     override val traitString = arrayOf("supportPopOutEmoticon isC2C=")
     override val filter = DexKitFilter.allStaticFields
 }
 
-object CTestStructMsg : DexKitTarget.UsingStr() {
+data object CTestStructMsg : DexKitTarget.UsingStr() {
     override val declaringClass = "com/tencent/mobileqq/structmsg/TestStructMsg"
     override val traitString = arrayOf("TestStructMsg")
     override val filter = DexKitFilter.allStaticFields
 }
 
-object CSystemMessageProcessor : DexKitTarget.UsingStr() {
+data object CSystemMessageProcessor : DexKitTarget.UsingStr() {
     override val declaringClass = "com.tencent.mobileqq.app.message.SystemMessageProcessor"
     override val traitString = arrayOf("<---handleGetFriendSystemMsgResp : decode pb filtered")
     override val filter = DexKitFilter.allowAll
 }
 
-object COnlinePushPbPushTransMsg : DexKitTarget.UsingStr() {
+data object COnlinePushPbPushTransMsg : DexKitTarget.UsingStr() {
     override val declaringClass = "com.tencent.mobileqq.app.handler.receivesuccess.OnlinePushPbPushTransMsg"
     override val traitString = arrayOf("PbPushTransMsg muteGeneralFlag:")
-    override val filter = DexKitFilter.strInClsName("/receivesuccess/")
+    override val filter = if (requireMinQQVersion(QQVersion.QQ_9_1_30)) DexKitFilter.allowAll else DexKitFilter.strInClsName("/receivesuccess/")
 }
 
-object CFrameControllerInjectImpl : DexKitTarget.UsingStr() {
+data object CFrameControllerInjectImpl : DexKitTarget.UsingStr() {
     override val declaringClass = "com.tencent.mobileqq.activity.framebusiness.controllerinject.FrameControllerInjectImpl"
     override val traitString = arrayOf("FrameControllerInjectImpl.recoverTabBluer")
     override val filter = DexKitFilter.strInClsName("com/tencent/mobileqq/activity/framebusiness/controllerinject/")
 }
 
-object ForwardSendPicUtil : DexKitTarget.UsingStr() {
+data object ForwardSendPicUtil : DexKitTarget.UsingStr() {
     override val declaringClass = "com/tencent/mobileqq/utils/ForwardSendPicUtil"
     override val traitString = arrayOf("ForwardSendPicUtil")
     override val filter = DexKitFilter.allowAll
 }
 
-object NBaseChatPie_init : DexKitTarget.UsingStr() {
+data object AbstractQQCustomMenuItem : DexKitTarget.UsingStr() {
+    override val declaringClass = "com.tencent.qqnt.aio.menu.ui.AbstractQQCustomMenuItem"
+    override val traitString = arrayOf("QQCustomMenuItem{title='")
+    override val filter = DexKitFilter.strInClsName("com/tencent/qqnt/aio/menu/ui")
+}
+
+data object VasAttrBuilder : DexKitTarget.UsingStr() {
+    override val findMethod: Boolean = true
+    override val declaringClass = "com.tencent.mobileqq.vas.p"
+    override val traitString = arrayOf("attrs")
+    override val filter = DexKitFilter.strInClsName("com/tencent/mobileqq/vas")
+}
+
+data object Guild_Emo_Btn_Create_QQNT : DexKitTarget.UsingStr() {
+    override val findMethod: Boolean = true
+    override val traitString = arrayOf("mEmojiLayout.findViewByI…id.guild_aio_emoji_image)")
+    override val declaringClass = "Guild_Emo_Btn_Create_QQNT"
+    override val filter = DexKitFilter.allowAll
+}
+
+data object NBaseChatPie_init : DexKitTarget.UsingStr() {
     override val findMethod: Boolean = true
     override val declaringClass: String = _BaseChatPie()?.name ?: "com.tencent.mobileqq.activity.BaseChatPie"
     override val traitString = arrayOf("input set error", ", mDefautlBtnLeft: ")
     override val filter = DexKitFilter.strInClsName(declaringClass.replace('.', '/'))
 }
 
-object NBaseChatPie_createMulti : DexKitTarget.UsingStr() {
+data object NBaseChatPie_createMulti : DexKitTarget.UsingStr() {
     override val findMethod: Boolean = true
     override val declaringClass: String = _BaseChatPie()?.name ?: "com.tencent.mobileqq.activity.BaseChatPie"
     override val traitString = arrayOf("^createMulti$")
@@ -395,28 +427,28 @@ object NBaseChatPie_createMulti : DexKitTarget.UsingStr() {
         }
 }
 
-object NBaseChatPie_chooseMsg : DexKitTarget.UsingStr() {
+data object NBaseChatPie_chooseMsg : DexKitTarget.UsingStr() {
     override val findMethod: Boolean = true
     override val declaringClass: String = _BaseChatPie()?.name ?: "com.tencent.mobileqq.activity.BaseChatPie"
     override val traitString = arrayOf("set left text from cancel")
     override val filter = DexKitFilter.strInClsName(declaringClass.replace('.', '/'))
 }
 
-object NLeftSwipeReplyHelper_reply : DexKitTarget.UsingStr() {
+data object NLeftSwipeReplyHelper_reply : DexKitTarget.UsingStr() {
     override val findMethod: Boolean = true
     override val declaringClass = "com/tencent/mobileqq/bubble/LeftSwipeReplyHelper"
     override val traitString = arrayOf("0X800A92F")
     override val filter = DexKitFilter.allowAll
 }
 
-object NAtPanel_showDialogAtView : DexKitTarget.UsingStr() {
+data object NAtPanel_showDialogAtView : DexKitTarget.UsingStr() {
     override val findMethod: Boolean = true
     override val declaringClass = "com/tencent/mobileqq/troop/quickat/ui/AtPanel"
     override val traitString = arrayOf("showDialogAtView")
     override val filter = DexKitFilter.notHasSuper
 }
 
-object NAtPanel_refreshUI : DexKitTarget.UsingStr() {
+data object NAtPanel_refreshUI : DexKitTarget.UsingStr() {
     override val findMethod: Boolean = true
     override val declaringClass = "com/tencent/mobileqq/troop/quickat/ui/AtPanel"
     override val traitString = arrayOf("resultList = null")
@@ -427,14 +459,14 @@ object NAtPanel_refreshUI : DexKitTarget.UsingStr() {
         }
 }
 
-object NFriendChatPie_updateUITitle : DexKitTarget.UsingStr() {
+data object NFriendChatPie_updateUITitle : DexKitTarget.UsingStr() {
     override val findMethod: Boolean = true
     override val declaringClass = "com/tencent/mobileqq/activity/aio/core/FriendChatPie"
     override val traitString = arrayOf("FriendChatPie updateUI_ti")
     override val filter = DexKitFilter.allowAll
 }
 
-object NProfileCardUtil_getCard : DexKitTarget.UsingStr() {
+data object NProfileCardUtil_getCard : DexKitTarget.UsingStr() {
     override val findMethod: Boolean = true
     override val declaringClass = "com.tencent.mobileqq.util.ProfileCardUtil"
     override val traitString = arrayOf("initCard bSuperVipOpen=")
@@ -444,7 +476,7 @@ object NProfileCardUtil_getCard : DexKitTarget.UsingStr() {
     }
 }
 
-object NVasProfileTemplateController_onCardUpdate : DexKitTarget.UsingStr() {
+data object NVasProfileTemplateController_onCardUpdate : DexKitTarget.UsingStr() {
     override val findMethod: Boolean = true
     override val declaringClass = "com.tencent.mobileqq.profilecard.vas.VasProfileTemplateController"
     override val traitString = arrayOf("onCardUpdate fail.", "onCardUpdate: bgId=")
@@ -456,7 +488,7 @@ object NVasProfileTemplateController_onCardUpdate : DexKitTarget.UsingStr() {
     }
 }
 
-object NQQSettingMe_updateProfileBubble : DexKitTarget.UsingStr() {
+data object NQQSettingMe_updateProfileBubble : DexKitTarget.UsingStr() {
     override val findMethod: Boolean = true
     override val declaringClass = "com.tencent.mobileqq.activity.QQSettingMe"
     override val traitString = arrayOf("updateProfileBubbleMsgView")
@@ -466,14 +498,17 @@ object NQQSettingMe_updateProfileBubble : DexKitTarget.UsingStr() {
     }
 }
 
-object NQQSettingMe_onResume : DexKitTarget.UsingStr() {
+data object NQQSettingMe_onResume : DexKitTarget.UsingStr() {
     override val findMethod: Boolean = true
     override val declaringClass = "com.tencent.mobileqq.activity.QQSettingMe"
     override val traitString = arrayOf("-->onResume!")
-    override val filter = DexKitFilter.strInClsName("QQSettingMe")
+    override val filter = filter@{ it: DexMethodDescriptor ->
+        it.declaringClass.contains("QQSettingMe") && !it.declaringClass.contains("V9")
+        // 暂不支持V9侧滑栏，排除
+    }
 }
 
-object NVipUtils_getPrivilegeFlags : DexKitTarget.UsingStr() {
+data object NVipUtils_getPrivilegeFlags : DexKitTarget.UsingStr() {
     override val findMethod: Boolean = true
     override val declaringClass = "com/tencent/mobileqq/utils/VipUtils"
     override val traitString = arrayOf("getPrivilegeFlags Friends is null")
@@ -485,7 +520,7 @@ object NVipUtils_getPrivilegeFlags : DexKitTarget.UsingStr() {
     }
 }
 
-object NTroopChatPie_showNewTroopMemberCount : DexKitTarget.UsingStr() {
+data object NTroopChatPie_showNewTroopMemberCount : DexKitTarget.UsingStr() {
     override val findMethod: Boolean = true
     override val declaringClass: String = _TroopChatPie()?.name ?: "com.tencent.mobileqq.activity.aio.core.TroopChatPie"
     override val traitString = arrayOf("showNewTroopMemberCount info is null")
@@ -495,21 +530,21 @@ object NTroopChatPie_showNewTroopMemberCount : DexKitTarget.UsingStr() {
     }
 }
 
-object NConversation_onCreate : DexKitTarget.UsingStr() {
+data object NConversation_onCreate : DexKitTarget.UsingStr() {
     override val findMethod: Boolean = true
     override val declaringClass = "com/tencent/mobileqq/activity/home/Conversation"
     override val traitString = arrayOf("Recent_OnCreate")
     override val filter = DexKitFilter.strInClsName("Conversation")
 }
 
-object NBaseChatPie_mosaic : DexKitTarget.UsingStr() {
+data object NBaseChatPie_mosaic : DexKitTarget.UsingStr() {
     override val findMethod: Boolean = true
     override val declaringClass: String = _BaseChatPie()?.name ?: "com.tencent.mobileqq.activity.aio.core.BaseChatPie"
     override val traitString = arrayOf("enableMosaicEffect")
     override val filter = DexKitFilter.strInClsName(declaringClass.replace('.', '/'))
 }
 
-object NWebSecurityPluginV2_callback : DexKitTarget.UsingStr() {
+data object NWebSecurityPluginV2_callback : DexKitTarget.UsingStr() {
     override val findMethod: Boolean = true
     override val declaringClass = "com.tencent.mobileqq.webview.WebSecurityPluginV2\$"
     override val traitString = arrayOf("check finish jr=")
@@ -519,7 +554,7 @@ object NWebSecurityPluginV2_callback : DexKitTarget.UsingStr() {
     }
 }
 
-object NTroopAppShortcutBarHelper_resumeAppShorcutBar : DexKitTarget.UsingStr() {
+data object NTroopAppShortcutBarHelper_resumeAppShorcutBar : DexKitTarget.UsingStr() {
     override val findMethod: Boolean = true
     override val declaringClass = "com.tencent.mobileqq.activity.aio.helper.TroopAppShortcutBarHelper"
     override val traitString = arrayOf("resumeAppShorcutBar")
@@ -529,7 +564,7 @@ object NTroopAppShortcutBarHelper_resumeAppShorcutBar : DexKitTarget.UsingStr() 
         DexKitFilter.defpackage
 }
 
-object NChatActivityFacade_sendMsgButton : DexKitTarget.UsingStr() {
+data object NChatActivityFacade_sendMsgButton : DexKitTarget.UsingStr() {
     override val findMethod: Boolean = true
     override val declaringClass = "com/tencent/mobileqq/activity/ChatActivityFacade"
     override val traitString = arrayOf(" sendMessage start currenttime:")
@@ -540,28 +575,28 @@ object NChatActivityFacade_sendMsgButton : DexKitTarget.UsingStr() {
         }
 }
 
-object NFriendsStatusUtil_isChatAtTop : DexKitTarget.UsingStr() {
+data object NFriendsStatusUtil_isChatAtTop : DexKitTarget.UsingStr() {
     override val findMethod: Boolean = true
     override val declaringClass = "com.tencent.mobileqq.app.utils.FriendsStatusUtil"
     override val traitString = arrayOf("isChatAtTop result is: ")
     override val filter = DexKitFilter.strInClsName("FriendsStatusUtil")
 }
 
-object NVipUtils_getUserStatus : DexKitTarget.UsingStr() {
+data object NVipUtils_getUserStatus : DexKitTarget.UsingStr() {
     override val findMethod: Boolean = true
     override val declaringClass = "com.tencent.mobileqq.utils.VipUtils"
     override val traitString = arrayOf("getUserStatus Friends is null")
     override val filter = DexKitFilter.allowAll
 }
 
-object NPhotoListPanel_resetStatus : DexKitTarget.UsingStr() {
+data object NPhotoListPanel_resetStatus : DexKitTarget.UsingStr() {
     override val findMethod: Boolean = true
     override val declaringClass = "com.tencent.mobileqq.activity.aio.photo.PhotoListPanel"
     override val traitString = arrayOf("resetStatus selectSize:")
     override val filter = DexKitFilter.strInSig("(Z)V")
 }
 
-object NContactUtils_getDiscussionMemberShowName : DexKitTarget.UsingStr() {
+data object NContactUtils_getDiscussionMemberShowName : DexKitTarget.UsingStr() {
     override val findMethod: Boolean = true
     override val declaringClass = "com.tencent.mobileqq.utils.ContactUtils"
     override val traitString = arrayOf("getDiscussionMemberShowName uin is null")
@@ -571,7 +606,7 @@ object NContactUtils_getDiscussionMemberShowName : DexKitTarget.UsingStr() {
     }
 }
 
-object NContactUtils_getBuddyName : DexKitTarget.UsingStr() {
+data object NContactUtils_getBuddyName : DexKitTarget.UsingStr() {
     override val findMethod: Boolean = true
     override val declaringClass = "com.tencent.mobileqq.utils.ContactUtils"
     override val traitString = arrayOf("getBuddyName()")
@@ -581,29 +616,36 @@ object NContactUtils_getBuddyName : DexKitTarget.UsingStr() {
     }
 }
 
-object NScene_checkDataRecmdRemarkList : DexKitTarget.UsingStr() {
+data object NScene_checkDataRecmdRemarkList : DexKitTarget.UsingStr() {
     override val findMethod: Boolean = true
     override val declaringClass = "com.tencent.mobileqq.troopAddFrd.Scene"
     override val traitString = arrayOf("checkDataRecmdRemarkList cacheInvalid_ts_type_troopUin=%b_%d_%d_%s")
-    override val filter = DexKitFilter.strInClsName("com/tencent/mobileqq/troopAddFrd") or DexKitFilter.defpackage
+    override val filter = DexKitFilter.strInClsName("com/tencent/mobileqq/") or DexKitFilter.defpackage
 }
 
-object NCustomWidgetUtil_updateCustomNoteTxt : DexKitTarget.UsingStr() {
+data object NCustomWidgetUtil_updateCustomNoteTxt : DexKitTarget.UsingStr() {
     // guess
-    override val findMethod: Boolean = true
     override val declaringClass = "com.tencent.widget.CustomWidgetUtil"
     override val traitString = arrayOf("^NEW$")
-    override val filter = DexKitFilter.strInClsName("com/tencent/widget") or
-        DexKitFilter.defpackage and
-        DexKitFilter.notHasSuper and
-        filter@{ it: DexMethodDescriptor ->
-            val m = kotlin.runCatching { it.getMethodInstance(getHostClassLoader()) }.getOrNull() ?: return@filter false
-            m.isStatic && m.returnType == Void.TYPE
-                && m.parameterTypes[0] == TextView::class.java && m.paramCount == 6
-        }
+    override val filter = DexKitFilter.strInClsName("com/tencent/widget") or DexKitFilter.defpackage and DexKitFilter.notHasSuper
 }
 
-object NPadUtil_initDeviceType : DexKitTarget.UsingStr() {
+data object AIOTitleVB_updateLeftTopBack_NT : DexKitTarget.UsingStr() {
+    // guess
+    override val findMethod: Boolean = true
+    override val declaringClass = "com.tencent.mobileqq.aio.title.AIOTitleVB"
+    override val traitString = arrayOf("99+")
+    override val filter = DexKitFilter.strInClsName("com/tencent/mobileqq/aio/title/")
+}
+
+data object CCustomWidgetUtil_updateCustomNoteTxt_NT : DexKitTarget.UsingStr() {
+    // guess
+    override val declaringClass = "com.tencent.widget.CustomWidgetUtil"
+    override val traitString = arrayOf("fixTextViewLayout wrong: params wrong")
+    override val filter = DexKitFilter.strInClsName("com/tencent/qqnt/chats")
+}
+
+data object NPadUtil_initDeviceType : DexKitTarget.UsingStr() {
     override val findMethod: Boolean = true
     override val declaringClass = "com.tencent.common.config.PadUtil"
     override val traitString = arrayOf("initDeviceType type = ")
@@ -611,48 +653,428 @@ object NPadUtil_initDeviceType : DexKitTarget.UsingStr() {
 }
 
 // TODO 待优化这几种类型
-object NTextItemBuilder_setETText : DexKitTarget.UsingDexkit() {
+data object NTextItemBuilder_setETText : DexKitTarget.UsingDexkit() {
     override val findMethod: Boolean = true
     override val declaringClass = "com/tencent/mobileqq/activity/aio/item/TextItemBuilder"
     override val filter = DexKitFilter.allowAll
 }
 
-object NAIOPictureView_setVisibility : DexKitTarget.UsingDexkit() {
+data object NAIOPictureView_setVisibility : DexKitTarget.UsingDexkit() {
     override val findMethod: Boolean = true
     override val declaringClass = "com/tencent/mobileqq/activity/aio/photo/AIOPictureView"
     override val filter = DexKitFilter.allowAll
 }
 
-object NAIOPictureView_onDownloadOriginalPictureClick : DexKitTarget.UsingDexkit() {
+data object NAIOPictureView_onDownloadOriginalPictureClick : DexKitTarget.UsingDexkit() {
     override val findMethod: Boolean = true
     override val declaringClass = "com/tencent/mobileqq/activity/aio/photo/AIOPictureView"
     override val filter = DexKitFilter.allowAll
 }
 
-object PaiYiPaiHandler_canSendReq : DexKitTarget.UsingStr() {
+data object PaiYiPaiHandler_canSendReq : DexKitTarget.UsingStr() {
     override val findMethod: Boolean = true
     override val declaringClass = "com/tencent/mobileqq/paiyipai/PaiYiPaiHandler"
     override val traitString = arrayOf("pai_yi_pai_user_double_tap_timestamp_")
     override val filter = DexKitFilter.allowAll
 }
 
-object TroopGuildChatPie_flingRToL : DexKitTarget.UsingStr() {
+data object TroopGuildChatPie_flingRToL : DexKitTarget.UsingStr() {
     override val findMethod: Boolean = true
     override val declaringClass = "com.tencent.mobileqq.troop.guild.TroopGuildChatPie"
     override val traitString = arrayOf("[flingRToL] isMultiSelectState:")
     override val filter = DexKitFilter.allowAll
 }
 
-object BaseListenTogetherPanel_onUIModuleNeedRefresh : DexKitTarget.UsingStr() {
+data object BaseListenTogetherPanel_onUIModuleNeedRefresh : DexKitTarget.UsingStr() {
     override val findMethod: Boolean = true
     override val declaringClass = "com.tencent.mobileqq.listentogether.ui.BaseListenTogetherPanel"
     override val traitString = arrayOf("onUIModuleNeedRefresh, checkSession is false")
     override val filter = DexKitFilter.allowAll
 }
 
-object EmotcationConstants : DexKitTarget.UsingStr() {
+data object EmotcationConstants : DexKitTarget.UsingStr() {
     override val findMethod: Boolean = false
     override val declaringClass = "com.tencent.mobileqq.text.EmotcationConstants"
     override val traitString = arrayOf("setEmojiMap emoji's file is null")
+    override val filter = DexKitFilter.allowAll
+}
+
+data object GroupSpecialCare_getCareTroopMemberMsgText : DexKitTarget.UsingStr() {
+    override val findMethod: Boolean = true
+    override val declaringClass = "com.tencent.util.notification.NotifyIdManager"
+    override val traitString = arrayOf("getCareTroopMemberMsgText: invoked.  troopMemberIsCared: ")
+    override val filter = DexKitFilter.allowAll
+}
+
+data object ChatPanel_InitPanel_QQNT : DexKitTarget.UsingStr() {
+    override val findMethod: Boolean = true
+    override val traitString = arrayOf("funBtnLayout.findViewById(R.id.fun_btn)")
+    override val declaringClass = "ChatPanel_InitPanel_QQNT"
+    override val filter = DexKitFilter.allowAll
+}
+
+data object AIO_Create_QQNT : DexKitTarget.UsingStr() {
+    override val findMethod: Boolean = true
+    override val traitString = arrayOf("rootVMBuild")
+    override val declaringClass = "AIO_Create_QQNT"
+    override val filter = DexKitFilter.allowAll
+}
+
+data object AIO_Destroy_QQNT : DexKitTarget.UsingStringVector() {
+    override val findMethod: Boolean = true
+    override val traitStringVectors = arrayOf(arrayOf("ChatPie", "onDestroy "))
+    override val declaringClass = "AIO_Create_QQNT"
+    override val filter = DexKitFilter.strInClsName("Lcom/tencent/aio/base/chat/ChatPie;", true)
+}
+
+data object AIO_InputRootInit_QQNT : DexKitTarget.UsingStr() {
+    override val findMethod: Boolean = true
+    override val traitString = arrayOf("inputRoot.findViewById(R.id.send_btn)")
+    override val declaringClass = ""
+    override val filter = DexKitFilter.strInClsName("com/tencent/mobileqq/aio/input")
+}
+
+data object EmoMsgUtils_isSingleLottie_QQNT : DexKitTarget.UsingStr() {
+    override val findMethod: Boolean = true
+    override val traitString = arrayOf("is Valid EmojiFaceId")
+    override val declaringClass = ""
+    override val filter = DexKitFilter.strInClsName("com/tencent/mobileqq/aio/utils")
+    // "com/tencent/guild/aio/util" 是频道的
+}
+
+data object Reply_At_QQNT : DexKitTarget.UsingStr() {
+    override val findMethod: Boolean = true
+    override val traitString = arrayOf("msgItem.msgRecord.senderUid")
+    override val declaringClass = ""
+    override val filter = DexKitFilter.strInClsName("com/tencent/mobileqq/aio/input")
+}
+
+data object TroopSendFile_QQNT : DexKitTarget.UsingStr() {
+    override val findMethod: Boolean = true
+    override val traitString = arrayOf("send local to troop file use nt, filePath:")
+    override val declaringClass = ""
+    override val filter = DexKitFilter.allowAll
+}
+
+data object TroopEnterEffect_QQNT : DexKitTarget.UsingStr() {
+    override val findMethod: Boolean = true
+    override val traitString = arrayOf("playAnimaions: isSimpleUISwitch = true")
+    override val declaringClass = ""
+    override val filter = DexKitFilter.allowAll
+    // 理论上非NT也能用，但祖法不可变
+}
+
+data object NQZMoment_EntranceEnabled : DexKitTarget.UsingStr() {
+    override val findMethod: Boolean = true
+    override val traitString = arrayOf("KEY_OPEN_QZMOMENT_ENTRANCE")
+    override val declaringClass = ""
+    override val filter = DexKitFilter.strInClsName("com/qzone/reborn/qzmoment/util")
+}
+
+data object DefaultFileModel : DexKitTarget.UsingStr() {
+    override val findMethod: Boolean = false
+    override val traitString = arrayOf("onVideoPlayerError : file entity is null")
+    override val declaringClass = "com.tencent.mobileqq.filemanager.fileviewer.model.DefaultFileModel"
+    override val filter = DexKitFilter.strInClsName("com.tencent.mobileqq.filemanager.fileviewer.model")
+}
+
+data object FileBrowserActivity_InnerClass_onItemClick : DexKitTarget.UsingStringVector() {
+    override val findMethod: Boolean = true
+    override val traitStringVectors: Array<Array<String>> = arrayOf(arrayOf("GeneralFileBrowserActivity", "reportShareActionSheetClick"))
+    override val declaringClass = ""
+    override val filter = DexKitFilter.strInClsName("FileBrowserActivity")
+}
+
+data object Multiforward_Avatar_setListener_NT : DexKitTarget.UsingDexkit() {
+    override val findMethod: Boolean = true
+    override val declaringClass = "com.tencent.mobileqq.aio.msglist.holder.component.avatar.AIOAvatarContentComponent"
+    override val filter = DexKitFilter.allowAll
+}
+
+data object AIOTextElementCtor : DexKitTarget.UsingStr() {
+    override val findMethod: Boolean = true
+    override val declaringClass = "com.tencent.mobileqq.aio.msg.AIOMsgElement.AIOTextElementCtor"
+    override val traitString = arrayOf("textElement")
+    override val filter = DexKitFilter.strInClsName("com/tencent/mobileqq/aio/msg")
+}
+
+data object AIOPicElementType : DexKitTarget.UsingStr() {
+    override val findMethod: Boolean = false
+    override val declaringClass = "com.tencent.mobileqq.aio.msg.AIOMsgElementType.PicElement"
+    override val traitString = arrayOf("PicElement(origPath=")
+    override val filter = DexKitFilter.strInClsName("com/tencent/qqnt/aio/")
+}
+
+data object MultiSelectToBottomIntent : DexKitTarget.UsingStr() {
+    override val findMethod: Boolean = false
+    override val declaringClass = "com.tencent.mobileqq.aio.input.multiselect.c.toBottomIntent"
+    override val traitString = arrayOf("SelectToBottom(dividingLineTop=")
+    override val filter = DexKitFilter.strInClsName("com/tencent/mobileqq/aio/input/multiselect")
+}
+
+data object MultiSelectBarVM : DexKitTarget.UsingStr() {
+    override val findMethod: Boolean = false
+    override val declaringClass = ""
+    override val traitString = arrayOf("MultiSelectBarVM")
+    override val filter = DexKitFilter.allowAll
+}
+
+data object AIOSendMsg : DexKitTarget.UsingStr() {
+    override val findMethod: Boolean = true
+    override val declaringClass = "com.tencent.mobileqq.aio.input.sendmsg.AIOSendMsgVMDelegate.sendMsg"
+    override val traitString = arrayOf("[sendMsg] elements is empty")
+    override val filter = DexKitFilter.strInClsName("com/tencent/mobileqq/aio/input/sendmsg/AIOSendMsgVMDelegate")
+}
+
+data object AIODelegate_ISwipeListener : DexKitTarget.UsingStringVector() {
+    override val findMethod: Boolean = false
+    override val declaringClass = "com.tencent.qqnt.aio.activity"
+    override val traitStringVectors = arrayOf(arrayOf("aio_disappear_type", "close_aio"))
+    override val filter = DexKitFilter.strInClsName("com/tencent/qqnt/aio/activity")
+}
+
+data object NT_SysAndEmojiResInfo : DexKitTarget.UsingStringVector() {
+    override val findMethod: Boolean = false
+    override val traitStringVectors = arrayOf(arrayOf("NT_SysAndEmojiResInfo", "reloadDrawable restartDownload:"))
+    override val declaringClass = ""
+    override val filter = DexKitFilter.allowAll
+}
+
+data object X5_Properties_conf : DexKitTarget.UsingStr() {
+    override val traitString: Array<String> = arrayOf("setting_forceUseSystemWebview", "result_systemWebviewForceUsed", "debug.conf")
+    override val declaringClass: String = "com.tencent.smtt.utils.LoadPropertiesUtils"
+    override val filter = DexKitFilter.allowAll
+}
+
+data object EmotionDownloadEnableSwitch : DexKitTarget.UsingStringVector() {
+    override val findMethod = true
+    override val traitStringVectors = arrayOf(arrayOf("emotion_download_disable_8980_887036489", "QRoute.api(IUnitedConfig…le_8980_887036489"))
+    override val declaringClass: String = ""
+    override val filter = DexKitFilter.strInClsName("com/tencent/mobileqq/emotionintegrate/")
+}
+
+
+data object QQ_SETTING_ME_CONFIG_CLASS : DexKitTarget.UsingStringVector() {
+    override val findMethod: Boolean = false
+    override val traitStringVectors: Array<Array<String>> = arrayOf(
+        arrayOf(
+            "超级QQ秀",
+            "我的视频",
+            "我的文件",
+            "我的收藏",
+            "我的相册",
+            //"我的小游戏", // removed since 9.0.90
+            "免流量",
+            "我的个性装扮",
+            "财富小金库",
+            "我的QQ钱包",
+            "开通会员",
+            "我的小世界",
+            //"直播" // removed since 9.0.90
+        )
+    )
+    override val declaringClass: String = ""
+    override val filter = DexKitFilter.allowAll
+}
+
+data object TextMsgItem_getText : DexKitTarget.UsingDexkit() {
+    override val findMethod: Boolean = true
+    override val declaringClass: String = "com.tencent.mobileqq.aio.msg.TextMsgItem"
+    override val filter: dexkitFilter = DexKitFilter.allowAll
+}
+
+data object ChatSettingForTroop_InitUI_TIM : DexKitTarget.UsingStr() {
+    override val findMethod: Boolean = true
+    override val traitString: Array<String> = arrayOf("initUI: time = ")
+    override val declaringClass: String = ""
+    override val filter: dexkitFilter = DexKitFilter.strInClsName("ChatSettingForTroop")
+}
+
+data object FormItem_TIM : DexKitTarget.UsingStringVector() {
+    override val findMethod: Boolean = false
+    override val traitStringVectors: Array<Array<String>> = arrayOf(arrayOf("RobotMemberFormItem", "setRobotRedDot"))
+    override val declaringClass: String = ""
+    override val filter: dexkitFilter = DexKitFilter.allowAll
+}
+
+data object QQSettingMeABTestHelper_isZPlanExpGroup_New : DexKitTarget.UsingStringVector() {
+    override val findMethod: Boolean = true
+    override val traitStringVectors: Array<Array<String>> = arrayOf(arrayOf("isZPlanExpGroup: ", "QQSettingMeABTestHelper"))
+    override val declaringClass: String = ""
+    override val filter: dexkitFilter = DexKitFilter.allowAll
+}
+
+data object QQSettingMeABTestHelper_isZplanExpGroup_Old : DexKitTarget.UsingStringVector() {
+    override val findMethod: Boolean = true
+    override val traitStringVectors: Array<Array<String>> = arrayOf(arrayOf("isZplanExpGroup: ", "QQSettingMeABTestHelper"))
+    override val declaringClass: String = ""
+    override val filter: dexkitFilter = DexKitFilter.allowAll
+}
+
+data object QQSettingMeABTestHelper_isV9ExpGroup : DexKitTarget.UsingStringVector() {
+    override val findMethod: Boolean = true
+    override val traitStringVectors: Array<Array<String>> = arrayOf(arrayOf("isV9ExpGroup: ", "QQSettingMeABTestHelper"))
+    override val declaringClass: String = ""
+    override val filter: dexkitFilter = DexKitFilter.allowAll
+}
+
+data object QQValueMethod : DexKitTarget.UsingStr() {
+    override val findMethod: Boolean = true
+    override val traitString: Array<String> = arrayOf("能量值:")
+    override val declaringClass: String = "com/tencent/mobileqq/vas/qqvaluecard/view/QQValuePagView"
+    override val filter: dexkitFilter = DexKitFilter.allowAll
+}
+
+data object QZoneFeedxTopEntranceMethod : DexKitTarget.UsingStr() {
+    override val findMethod: Boolean = true
+    override val traitString: Array<String> = arrayOf("findViewById(R.id.qzone_feedx_top_entrance_view)")
+    override val declaringClass: String = "com/qzone/reborn/feedx/widget/entrance/QZoneFeedxTopEntranceManagerView"
+    override val filter: dexkitFilter = DexKitFilter.allowAll
+}
+
+data object CopyPromptHelper_handlePrompt : DexKitTarget.UsingStr() {
+    override val findMethod: Boolean = true
+    override val traitString: Array<String> = arrayOf("handlePrompt content : ")
+    override val declaringClass: String = ""
+    override val filter: dexkitFilter = DexKitFilter.allowAll
+    // There may be at most 4 strings, but they should be in the same method
+}
+
+data object PushNotificationManager_judgeAndAddGrayTips : DexKitTarget.UsingStr() {
+    override val findMethod: Boolean = true
+    override val traitString: Array<String> = arrayOf("getmTodayHadShowCount > showCount")
+    override val declaringClass: String = "com/tencent/mobileqq/managers/PushNotificationManager"
+    override val filter: dexkitFilter = DexKitFilter.allowAll
+    // only one result expected
+}
+
+data object RecentPopup_onClickAction : DexKitTarget.UsingStr() {
+    override val findMethod: Boolean = true
+    override val traitString: Array<String> = arrayOf("jiahao.fukuan.click")
+    override val declaringClass = ""
+    override val filter: dexkitFilter = DexKitFilter.allowAll
+}
+
+data object TroopInfoCardPageABConfig : DexKitTarget.UsingStr() {
+    override val findMethod: Boolean = false
+    override val traitString: Array<String> = arrayOf("enableNewPageFromTroopSettingSwitch=")
+    override val declaringClass = ""
+    override val filter: dexkitFilter = DexKitFilter.allowAll
+}
+
+data object PlusPanel_PanelAdapter : DexKitTarget.UsingStr() {
+    override val findMethod: Boolean = false
+    override val traitString: Array<String> = arrayOf("appDataLists.subList(startIndex, endIndex)")
+    override val declaringClass = ""
+    override val filter: dexkitFilter = DexKitFilter.allowAll
+}
+
+data object Hd_FakePhone_Method : DexKitTarget.UsingStringVector() {
+    override val findMethod = true
+    override val traitStringVectors = arrayOf(arrayOf("status", "wording", "target_desc", "target_name"))
+    override val declaringClass = ""
+    override val filter = DexKitFilter.strInClsName("com/tencent/mobileqq/app/")
+}
+
+data object Hd_RemoveRedPackSkin_Class : DexKitTarget.UsingStr() {
+    override val findMethod = false
+    override val traitString = arrayOf("红包封皮")
+    override val declaringClass = ""
+    override val filter = DexKitFilter.strInClsName("com/tencent/mobileqq/qwallet/hb/panel/")
+}
+
+data object Hd_HandleQQSomeFunExit_fixFileView_Method : DexKitTarget.UsingStr() {
+    override val findMethod = true
+    override val traitString = arrayOf("(fileElement.fileSize)")
+    override val declaringClass = "Lcom/tencent/mobileqq/aio/msglist/holder/component/file/AIOFileViewer"
+    override val filter = DexKitFilter.allowAll
+}
+
+data object Hd_AutoSendOriginalPhoto_guildPicker_Method : DexKitTarget.UsingStr() {
+    override val findMethod = true
+    override val traitString = arrayOf("isRaw")
+    override val declaringClass = "Lcom/tencent/qqnt/qbasealbum/album/view/PickerBottomBarPart"
+    override val filter = DexKitFilter.strInClsName("com/tencent/qqnt/qbasealbum/album/view/")
+}
+
+data object Hd_AutoSendOriginalPhoto_photoListPanel_Method : DexKitTarget.UsingStr() {
+    override val findMethod = true
+    override val traitString = arrayOf("resetStatus selectSize:")
+    override val declaringClass = "Lcom/tencent/mobileqq/activity/aio/photo/PhotoListPanel"
+    override val filter = DexKitFilter.allowAll
+}
+
+data object Hd_DisableGrowHalfLayer_Method1 : DexKitTarget.UsingStringVector() {
+    override val findMethod = true
+    override val traitStringVectors = arrayOf(arrayOf("grow_half_layer_info", "grow_half_layer_tech_info"))
+    override val declaringClass = "cooperation.vip.ad.GrowHalfLayerHelper"
+    override val filter = DexKitFilter.strInClsName("cooperation/vip/ad/") and filter@{ it: DexMethodDescriptor ->
+        val m = kotlin.runCatching { it.getMethodInstance(getHostClassLoader()) }.getOrNull() ?: return@filter false
+        m.returnType == Void.TYPE && m.paramCount == 3
+    }
+}
+
+data object Hd_DisableGrowHalfLayer_Method2 : DexKitTarget.UsingStr() {
+    override val findMethod = true
+    override val traitString = arrayOf("start showVasADBanner")
+    override val declaringClass = "cooperation.vip.qqbanner.manager.VasADBannerManager"
+    override val filter = DexKitFilter.allowAll
+}
+
+data object Hd_GagInfoDisclosure_Method : DexKitTarget.UsingStr() {
+    override val findMethod = true
+    override val traitString = arrayOf("<---0x2dc push  groupCode:")
+    override val declaringClass = "com.tencent.imcore.message"
+    override val filter = DexKitFilter.strInClsName("com/tencent/imcore/message/")
+}
+
+data object OriginalPhotoNT_onInitView : DexKitTarget.UsingDexkit() {
+    override val findMethod: Boolean = true
+    override val declaringClass = ""
+    override val filter: dexkitFilter = DexKitFilter.allowAll
+}
+
+data object RemoveAudioTransitionMethod : DexKitTarget.UsingStr() {
+    override val findMethod = true
+    override val traitString = arrayOf("getDrawable onCompositionLoaded lottieComposition is null or mIsDestroyed")
+    override val declaringClass = "Lcom/tencent/mobileqq/activity/aio/audiopanel/AudioTransitionAnimManager;"
+    override val filter = DexKitFilter.allowAll
+}
+
+data object Hd_HideShortcutBar_Method_TroopApp : DexKitTarget.UsingStr() {
+    override val findMethod = true
+    override val traitString = arrayOf("isShortcutBarVisibleOrGoingToBeVisible return false for AIOIceBreakViewShowing")
+    override val declaringClass = "Lcom/tencent/mobileqq/activity/aio/helper/TroopAppShortcutBarHelper;"
+    override val filter = DexKitFilter.strInClsName("com/tencent/mobileqq/activity/aio/helper/")
+}
+
+data object Hd_HideShortcutBar_Method_Troop : DexKitTarget.UsingStr() {
+    override val findMethod = true
+    override val traitString = arrayOf(",isShowingCustomShortcut:")
+    override val declaringClass = "Lcom/tencent/mobileqq/troop/shortcut/aio/TroopShortcutVB;"
+    override val filter = DexKitFilter.allowAll
+}
+
+data object UnlockTroopNameLimitClass : DexKitTarget.UsingStr() {
+    override val findMethod = false
+    override val traitString = arrayOf("[☀-⟿]")
+    override val declaringClass = "Lcom/tencent/mobileqq/activity/editservice/EditTroopMemberNickService\$EmojiFilter;"
+    override val filter = DexKitFilter.strInClsName("com/tencent/mobileqq/activity/editservice/EditTroopMemberNickService")
+}
+
+data object DisableLightInteractionMethod : DexKitTarget.UsingStr() {
+    override val findMethod = true
+    override val traitString = arrayOf("em_bas_shortcut_bar_above_c2c_input_box")
+    override val declaringClass = "Lcom/tencent/mobileqq/aio/bottombar/c2c/LiteActionBottomBar;"
+    override val filter = filter@{ it: DexMethodDescriptor ->
+        val m = kotlin.runCatching { it.getMethodInstance(getHostClassLoader()) }.getOrNull() ?: return@filter false
+        m.returnType == View::class.java && m.paramCount == 2 && m.parameterTypes[1] == ViewGroup::class.java
+    }
+}
+
+data object Hd_HideTipsBar_Method : DexKitTarget.UsingStr() {
+    override val findMethod = true
+    override val traitString = arrayOf("initBannerView | banner = ")
+    override val declaringClass = "Lcom/tencent/mobileqq/banner/BannerManager;"
     override val filter = DexKitFilter.allowAll
 }

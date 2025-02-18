@@ -25,23 +25,30 @@ package me.ketal.hook
 import android.content.Context
 import android.os.Build
 import android.view.View
+import cc.hicore.QApp.QAppUtils
+import cc.hicore.QQDecodeUtils.DecodeForEncPic
 import cc.ioctl.util.Reflex
 import cc.ioctl.util.ui.FaultyDialog
+import com.github.kyuubiran.ezxhelper.utils.Log
 import com.github.kyuubiran.ezxhelper.utils.findMethod
 import com.github.kyuubiran.ezxhelper.utils.findMethodOrNull
 import com.github.kyuubiran.ezxhelper.utils.tryOrLogFalse
-import com.hicore.QQDecodeUtils.DecodeForEncPic
+import com.xiaoniu.dispatcher.OnMenuBuilder
+import io.github.qauxv.util.xpcompat.XC_MethodHook
 import io.github.qauxv.R
 import io.github.qauxv.base.annotation.FunctionHookEntry
 import io.github.qauxv.base.annotation.UiItemAgentEntry
 import io.github.qauxv.dsl.FunctionEntryRouter
 import io.github.qauxv.hook.CommonSwitchFunctionHook
 import io.github.qauxv.util.CustomMenu
+import io.github.qauxv.util.Initiator
 import io.github.qauxv.util.Initiator._ChatMessage
 import io.github.qauxv.util.Initiator._MarketFaceItemBuilder
 import io.github.qauxv.util.Initiator._MixedMsgItemBuilder
 import io.github.qauxv.util.Initiator._PicItemBuilder
+import io.github.qauxv.util.SyncUtils
 import io.github.qauxv.util.Toasts
+import io.github.qauxv.util.dexkit.AbstractQQCustomMenuItem
 import io.github.qauxv.util.isAndroidxFileProviderAvailable
 import xyz.nextalone.util.SystemServiceUtils.copyToClipboard
 import xyz.nextalone.util.clazz
@@ -50,9 +57,14 @@ import xyz.nextalone.util.hookAfter
 import xyz.nextalone.util.hookBefore
 import xyz.nextalone.util.invoke
 import java.io.File
+import kotlin.concurrent.thread
 
 @[FunctionHookEntry UiItemAgentEntry Suppress("UNCHECKED_CAST")]
-object PicCopyToClipboard : CommonSwitchFunctionHook() {
+object PicCopyToClipboard : CommonSwitchFunctionHook(
+    arrayOf(
+        AbstractQQCustomMenuItem
+    )
+), OnMenuBuilder {
     override val name: String = "复制图片到剪贴板"
 
     override val description: String = "复制图片到剪贴板，可以在聊天窗口中粘贴使用"
@@ -62,6 +74,9 @@ object PicCopyToClipboard : CommonSwitchFunctionHook() {
     override val isAvailable: Boolean = isAndroidxFileProviderAvailable
 
     override fun initOnce() = tryOrLogFalse {
+        if (QAppUtils.isQQnt()) {
+            return@tryOrLogFalse
+        }
         val clsPicItemBuilder = _PicItemBuilder()
         val clazz = arrayOf(
             clsPicItemBuilder,
@@ -84,16 +99,7 @@ object PicCopyToClipboard : CommonSwitchFunctionHook() {
                 if (path.size > 1) {
                     // todo Let the user select one of the items to copy
                 }
-                try {
-                    copyToClipboard(context, File(path.first()))
-                    // on Android 13+, the system will show something like "Copied to clipboard".
-                    // We only need to show a hint on Android 12 and below.
-                    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
-                        Toasts.success(context, "已复制图片")
-                    }
-                } catch (e: IllegalAccessException) {
-                    FaultyDialog.show(context, e);
-                }
+                onClick(context, File(path.first()))
             }
             it.findMethodOrNull {
                 returnType.isArray
@@ -114,6 +120,27 @@ object PicCopyToClipboard : CommonSwitchFunctionHook() {
         }
     }
 
+    private fun onClick(context: Context, file: File) {
+        if (!file.exists()) {
+            Toasts.info(context, "请查看原图后复制")
+            return
+        }
+        try {
+            thread {
+                copyToClipboard(context, file)
+                // on Android 13+, the system will show something like "Copied to clipboard".
+                // We only need to show a hint on Android 12 and below.
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+                    SyncUtils.runOnUiThread {
+                        Toasts.success(context, "已复制图片")
+                    }
+                }
+            }
+        } catch (e: IllegalAccessException) {
+            FaultyDialog.show(context, e)
+        }
+    }
+
     // find chatMessage from view
     private tailrec fun getMessage(view: View): Any {
         return if (view.parent.javaClass.simpleName.endsWith("ListView")) {
@@ -131,17 +158,20 @@ object PicCopyToClipboard : CommonSwitchFunctionHook() {
                     .map { getFilePath(it) }
                     .toTypedArray()
             }
+
             "MessageForMixedMsg" -> {
                 val list = message.get("msgElemList") as List<Any>
                 return list.filter { Reflex.getShortClassName(it) == "MessageForPic" }
                     .map { getFilePath(it) }
                     .toTypedArray()
             }
+
             "MessageForStructing" -> {
                 val text = message.get("structingMsg")?.invoke("getXml") as String
                 // todo parse structingmsg
                 emptyArray()
             }
+
             "MessageForMarketFace" -> {
                 val tmpPath = DecodeForEncPic.decodeGifForLocalPath(
                     message.get("mMarkFaceMessage").get("dwTabID") as Int,
@@ -150,8 +180,15 @@ object PicCopyToClipboard : CommonSwitchFunctionHook() {
                 if (tmpPath.isEmpty()) return emptyArray()
                 arrayOf(tmpPath)
             }
+
             else -> emptyArray()
         }
+    }
+
+    private fun getFilePathNt(message: Any): String {
+        val msgClass = Initiator.loadClass("com.tencent.mobileqq.aio.msg.AIOMsgItem")
+        val clazz = Initiator.load("com.tencent.qqnt.aio.msg.api.impl.AIOMsgItemApiImpl")!!
+        return clazz.newInstance().invoke("getLocalPath", message, msgClass) as String
     }
 
     private fun getFilePath(message: Any): String {
@@ -162,5 +199,22 @@ object PicCopyToClipboard : CommonSwitchFunctionHook() {
             File(path).exists()
         }
         return path
+    }
+
+    override val targetComponentTypes = arrayOf("com.tencent.mobileqq.aio.msglist.holder.component.pic.AIOPicContentComponent")
+
+    override fun onGetMenuNt(msg: Any, componentType: String, param: XC_MethodHook.MethodHookParam) {
+        if (!isEnabled) return
+        val list = param.result as MutableList<Any>
+        val context = param.thisObject.invoke("getMContext")!!
+        val item = CustomMenu.createItemIconNt(msg, "复制图片", R.drawable.ic_item_copy_72dp, R.id.item_copyToClipboard) {
+            runCatching {
+                val file = File(getFilePathNt(msg))
+                onClick(context as Context, file)
+            }.onFailure { t ->
+                Log.e(t)
+            }
+        }
+        list.add(item)
     }
 }

@@ -21,7 +21,11 @@
  */
 package io.github.qauxv.tlb
 
+import cc.ioctl.hook.sideswipe.SimplifyQQSettingMe
+import cc.ioctl.hook.troop.RemovePlayTogether
 import cc.ioctl.hook.ui.chat.ReplyNoAtHook
+import io.github.qauxv.bridge.QQMessageFacade
+import io.github.qauxv.util.QQVersion.QQ_8_2_0
 import io.github.qauxv.util.QQVersion.QQ_8_2_6
 import io.github.qauxv.util.QQVersion.QQ_8_3_6
 import io.github.qauxv.util.QQVersion.QQ_8_4_1
@@ -49,17 +53,22 @@ import io.github.qauxv.util.QQVersion.QQ_8_8_93
 import io.github.qauxv.util.QQVersion.QQ_8_8_98
 import io.github.qauxv.util.QQVersion.QQ_8_9_0
 import io.github.qauxv.util.QQVersion.QQ_8_9_13
-import io.github.qauxv.util.QQVersion.QQ_8_9_2
-import io.github.qauxv.util.QQVersion.QQ_8_9_3
-import io.github.qauxv.util.QQVersion.QQ_8_9_8
-import me.ketal.hook.SortAtPanel
-import cc.ioctl.hook.troop.RemovePlayTogether
-import cc.ioctl.hook.sideswipe.SimplifyQQSettingMe
-import io.github.qauxv.bridge.QQMessageFacade
-import io.github.qauxv.util.QQVersion.QQ_8_2_0
 import io.github.qauxv.util.QQVersion.QQ_8_9_18
+import io.github.qauxv.util.QQVersion.QQ_8_9_2
 import io.github.qauxv.util.QQVersion.QQ_8_9_25
 import io.github.qauxv.util.QQVersion.QQ_8_9_28
+import io.github.qauxv.util.QQVersion.QQ_8_9_3
+import io.github.qauxv.util.QQVersion.QQ_8_9_63_BETA_11345
+import io.github.qauxv.util.QQVersion.QQ_8_9_68
+import io.github.qauxv.util.QQVersion.QQ_8_9_70
+import io.github.qauxv.util.QQVersion.QQ_8_9_8
+import io.github.qauxv.util.QQVersion.QQ_8_9_90
+import io.github.qauxv.util.QQVersion.QQ_9_0_0
+import io.github.qauxv.util.QQVersion.QQ_9_0_20
+import io.github.qauxv.util.QQVersion.QQ_9_0_35
+import io.github.qauxv.util.QQVersion.QQ_9_0_85
+import io.github.qauxv.util.QQVersion.QQ_9_0_90
+import me.ketal.hook.SortAtPanel
 import xyz.nextalone.hook.ChatWordsCount
 
 class QQConfigTable : ConfigTableInterface {
@@ -95,6 +104,10 @@ class QQConfigTable : ConfigTableInterface {
             QQ_8_8_68 to "nm7",
             QQ_8_8_80 to "nmx",
             QQ_8_8_83 to "nnl",
+            // NT begin
+            QQ_8_9_63_BETA_11345 to "nxj",
+            QQ_8_9_68 to "nyb",
+            QQ_8_9_70 to "nyn"
         ),
 
         //中间部分(QQ会员 我的钱包等)
@@ -113,6 +126,13 @@ class QQConfigTable : ConfigTableInterface {
             // gap
             QQ_8_9_25 to "l0",
             QQ_8_9_28 to "m0",
+            QQ_8_9_68 to "l0",
+            QQ_8_9_90 to "i0",
+            QQ_9_0_0 to "f0",
+            QQ_9_0_20 to "e0",
+            QQ_9_0_35 to "g0",
+            QQ_9_0_85 to "h0",
+            QQ_9_0_90 to "f0",
         ),
 
         SortAtPanel.sessionInfoTroopUin to mapOf(

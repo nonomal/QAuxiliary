@@ -25,11 +25,14 @@ package io.github.qauxv.hook
 import android.app.Activity
 import android.content.Context
 import android.view.View
+import cc.microblock.hook.pangu_spacing
+import io.github.qauxv.base.IEntityAgent
 import io.github.qauxv.base.ISwitchCellAgent
 import io.github.qauxv.base.IUiItemAgent
+import io.github.qauxv.base.RuntimeErrorTracer
 import io.github.qauxv.util.SyncUtils
 import io.github.qauxv.util.dexkit.DexKitTarget
-import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 
 /**
  * A function that only has a enable/disable switch function.
@@ -64,27 +67,35 @@ abstract class CommonSwitchFunctionHook(
 
     open val extraSearchKeywords: Array<String>? = null
 
-    override val uiItemAgent: IUiItemAgent by lazy {
-        object : IUiItemAgent {
-            override val titleProvider: (IUiItemAgent) -> String = { _ -> name }
-            override val summaryProvider: (IUiItemAgent, Context) -> CharSequence? = { _, _ -> description }
-            override val valueState: MutableStateFlow<String?>? = null
-            override val validator: ((IUiItemAgent) -> Boolean) = { _ -> true }
-            override val switchProvider: ISwitchCellAgent? by lazy {
-                object : ISwitchCellAgent {
-                    override val isCheckable = true
-                    override var isChecked: Boolean
-                        get() = isEnabled
-                        set(value) {
-                            if (value != isEnabled) {
-                                isEnabled = value
-                            }
-                        }
-                }
-            }
-            override val onClickListener: ((IUiItemAgent, Activity, View) -> Unit)? = null
-            override val extraSearchKeywordProvider: ((IUiItemAgent, Context) -> Array<String>?)?
-                get() = extraSearchKeywords?.let { { _, _ -> it } }
+    override val uiItemAgent by lazy { uiItemAgent() }
+
+    private fun uiItemAgent() = object : IUiItemAgent {
+        override val titleProvider: (IEntityAgent) -> String = { _ -> pangu_spacing(name) }
+        override val summaryProvider: (IEntityAgent, Context) -> CharSequence? = { _, _ ->
+            if (description is String)
+                pangu_spacing(description.toString())
+            else description
         }
+        override val valueState: StateFlow<String?>? = null
+        override val validator: ((IUiItemAgent) -> Boolean) = { _ -> true }
+        override val switchProvider: ISwitchCellAgent? by lazy {
+            object : ISwitchCellAgent {
+                override val isCheckable = true
+                override var isChecked: Boolean
+                    get() = isEnabled
+                    set(value) {
+                        if (value != isEnabled) {
+                            isEnabled = value
+                        }
+                    }
+            }
+        }
+        override val onClickListener: ((IUiItemAgent, Activity, View) -> Unit)? = null
+        override val extraSearchKeywordProvider: ((IUiItemAgent, Context) -> Array<String>?)?
+            get() = extraSearchKeywords?.let { { _, _ -> it } }
     }
+
+    override val runtimeErrorDependentComponents: List<RuntimeErrorTracer>?
+        get() = null
+
 }

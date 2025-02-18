@@ -29,6 +29,7 @@ import static io.github.qauxv.util.TIMVersion.TIM_3_1_1;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import cc.hicore.QApp.QAppUtils;
 import cc.ioctl.util.HookUtils;
 import cc.ioctl.util.HostInfo;
 import io.github.qauxv.base.annotation.FunctionHookEntry;
@@ -37,6 +38,9 @@ import io.github.qauxv.dsl.FunctionEntryRouter.Locations.Simplify;
 import io.github.qauxv.hook.CommonSwitchFunctionHook;
 import io.github.qauxv.tlb.ConfigTable;
 import io.github.qauxv.util.Initiator;
+import io.github.qauxv.util.dexkit.DexKit;
+import io.github.qauxv.util.dexkit.DexKitTarget;
+import io.github.qauxv.util.dexkit.Reply_At_QQNT;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.Objects;
@@ -72,12 +76,15 @@ public class ReplyNoAtHook extends CommonSwitchFunctionHook {
     public static final ReplyNoAtHook INSTANCE = new ReplyNoAtHook();
 
     private ReplyNoAtHook() {
-        super();
+        super(new DexKitTarget[]{Reply_At_QQNT.INSTANCE});
     }
 
     @Override
     public boolean initOnce() throws ReflectiveOperationException {
-        if (HostInfo.requireMinQQVersion(QQ_8_6_0)) {
+        if (QAppUtils.isQQnt()) {
+            HookUtils.hookBeforeIfEnabled(this, DexKit.requireMethodFromCache(Reply_At_QQNT.INSTANCE),
+                    49, param -> param.setResult(null));
+        } else if (HostInfo.requireMinQQVersion(QQ_8_6_0)) {
             String className = ConfigTable.getConfig(ReplyNoAtHook.class.getSimpleName());
             if (className == null) {
                 return false;

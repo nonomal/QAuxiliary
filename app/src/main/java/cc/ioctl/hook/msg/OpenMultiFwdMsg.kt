@@ -34,6 +34,7 @@ import android.widget.LinearLayout
 import androidx.appcompat.app.AlertDialog
 import cc.ioctl.util.LayoutHelper
 import cc.ioctl.util.ui.FaultyDialog
+import io.github.qauxv.base.IEntityAgent
 import io.github.qauxv.base.ISwitchCellAgent
 import io.github.qauxv.base.IUiItemAgent
 import io.github.qauxv.base.IUiItemAgentProvider
@@ -47,8 +48,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 
 @UiItemAgentEntry
 object OpenMultiFwdMsg : IUiItemAgent, IUiItemAgentProvider {
-    override val titleProvider: (IUiItemAgent) -> String = { "打开合并转发消息" }
-    override val summaryProvider: ((IUiItemAgent, Context) -> String?)? = null
+    override val titleProvider: (IEntityAgent) -> String = { "打开合并转发消息" }
+    override val summaryProvider: ((IEntityAgent, Context) -> String?)? = null
     override val valueState: MutableStateFlow<String?>? = null
     override val validator: ((IUiItemAgent) -> Boolean)? = null
     override val switchProvider: ISwitchCellAgent? = null
@@ -96,14 +97,11 @@ object OpenMultiFwdMsg : IUiItemAgent, IUiItemAgentProvider {
         if (!multiUri.matches(Regex("^[\\dA-Za-z+/]+$"))) {
             return false
         }
-        try {
+        return try {
             val bytes = Base64.decode(multiUri, Base64.DEFAULT)
-            if (bytes.size != 0x30) {
-                return false
-            }
-            return true
+            bytes.size == 0x30
         } catch (e: IllegalArgumentException) {
-            return false
+            false
         }
     }
 

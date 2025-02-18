@@ -21,41 +21,36 @@
  */
 package cc.ioctl.hook.chat;
 
-import android.app.Activity;
-import android.app.Application;
-import android.content.Context;
-import android.view.View;
+import static io.github.qauxv.util.HostInfo.requireMinQQVersion;
+
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import cc.hicore.QApp.QAppUtils;
+import cc.ioctl.util.HookUtils;
 import cc.ioctl.util.HostInfo;
-import io.github.qauxv.util.SyncUtils;
-import io.github.qauxv.base.IDynamicHook;
-import io.github.qauxv.base.ISwitchCellAgent;
-import io.github.qauxv.base.IUiItemAgent;
-import io.github.qauxv.base.IUiItemAgentProvider;
+import cc.ioctl.util.Reflex;
+import com.tencent.qqnt.kernel.nativeinterface.VASMsgBubble;
+import io.github.qauxv.util.xpcompat.XC_MethodHook;
+import io.github.qauxv.util.xpcompat.XposedBridge;
 import io.github.qauxv.base.annotation.FunctionHookEntry;
 import io.github.qauxv.base.annotation.UiItemAgentEntry;
 import io.github.qauxv.dsl.FunctionEntryRouter.Locations.Simplify;
-import io.github.qauxv.step.Step;
+import io.github.qauxv.hook.CommonSwitchFunctionHook;
+import io.github.qauxv.util.Initiator;
+import io.github.qauxv.util.QQVersion;
 import java.io.File;
-import java.util.Collections;
-import java.util.List;
-import kotlin.Unit;
-import kotlin.jvm.functions.Function1;
-import kotlin.jvm.functions.Function2;
-import kotlin.jvm.functions.Function3;
-import kotlinx.coroutines.flow.MutableStateFlow;
+import java.lang.reflect.Method;
 
 @FunctionHookEntry
 @UiItemAgentEntry
-public class DefaultBubbleHook implements IDynamicHook, IUiItemAgentProvider, IUiItemAgent {
+public class DefaultBubbleHook extends CommonSwitchFunctionHook {
 
     public static final DefaultBubbleHook INSTANCE = new DefaultBubbleHook();
 
     private DefaultBubbleHook() {
     }
 
-    private static final String[] paths = {"/bubble_info", "/files/bubble_info", "/files/bubble_paster"};
+    private static final String[] paths = {"/bubble_info", "/files/bubble_info", "/files/bubble_paster", "/files/vas_material_folder/bubble_dir"};
 
     @Override
     public boolean isAvailable() {
@@ -63,22 +58,38 @@ public class DefaultBubbleHook implements IDynamicHook, IUiItemAgentProvider, IU
     }
 
     @Override
-    public boolean isEnabled() {
-        if (HostInfo.isTim()) {
-            return false;
-        }
-        Application app = HostInfo.getApplication();
-        for (String path : paths) {
-            File dir = new File(app.getFilesDir().getAbsolutePath() + path);
-            if (dir.exists()) {
-                return !dir.canRead();
+    protected boolean initOnce() throws Exception {
+        final String bubbleClsName = "com.tencent.qqnt.kernel.nativeinterface.VASMsgBubble";
+
+        if (requireMinQQVersion(QQVersion.QQ_9_0_15)) {
+            XposedBridge.hookAllConstructors(Class.forName(bubbleClsName), new XC_MethodHook() {
+                @Override
+                protected void afterHookedMethod(@NonNull MethodHookParam param) {
+                    VASMsgBubble v = (VASMsgBubble) param.thisObject;
+                    v.bubbleId = 0;
+                    v.subBubbleId = 0;
+                }
+            });
+        } else if (QAppUtils.isQQnt()) {
+            Class<?> bubbleCls = Class.forName(bubbleClsName);
+            HookUtils.hookBeforeIfEnabled(this, bubbleCls.getDeclaredMethod("getBubbleId"), param -> param.setResult(0));
+            HookUtils.hookBeforeIfEnabled(this, bubbleCls.getDeclaredMethod("getSubBubbleId"), param -> param.setResult(0));
+        } else {
+            updateChmod(true);
+            Class<?> kAIOMsgItem = Initiator.load("com.tencent.mobileqq.aio.msg.AIOMsgItem");
+            Class<?> kAIOBubbleSkinInfo = Initiator.load("com.tencent.mobileqq.aio.msglist.holder.skin.AIOBubbleSkinInfo");
+            if (kAIOMsgItem != null && kAIOBubbleSkinInfo != null) {
+                Method m = Reflex.findSingleMethod(kAIOMsgItem, void.class, false, kAIOBubbleSkinInfo);
+                HookUtils.hookBeforeIfEnabled(this, m, param -> {
+                    param.args[0] = null;
+                    param.setResult(null);
+                });
             }
         }
-        return false;
+        return true;
     }
 
-    @Override
-    public void setEnabled(boolean enabled) {
+    private static void updateChmod(boolean enabled) {
         for (String path : paths) {
             File dir = new File(HostInfo.getApplication().getFilesDir().getAbsolutePath() + path);
             boolean curr = !dir.exists() || !dir.canRead();
@@ -95,119 +106,26 @@ public class DefaultBubbleHook implements IDynamicHook, IUiItemAgentProvider, IU
                 }
             }
         }
-
-    }
-
-    private final ISwitchCellAgent switchCellAgent = new ISwitchCellAgent() {
-        @Override
-        public boolean isChecked() {
-            return isEnabled();
-        }
-
-        @Override
-        public void setChecked(boolean isChecked) {
-            setEnabled(isChecked);
-        }
-
-        @Override
-        public boolean isCheckable() {
-            return true;
-        }
-    };
-
-    @Override
-    public boolean isInitialized() {
-        return true;
     }
 
     @Override
-    public boolean isInitializationSuccessful() {
-        return isInitialized();
-    }
-
-    @Override
-    public boolean initialize() {
-        return true;
+    public void setEnabled(boolean value) {
+        super.setEnabled(value);
+        if (!value) {
+            updateChmod(false);
+        }
     }
 
     @NonNull
     @Override
-    public List<Throwable> getRuntimeErrors() {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public int getTargetProcesses() {
-        return SyncUtils.PROC_MAIN;
-    }
-
-    @Override
-    public boolean isTargetProcess() {
-        return SyncUtils.isMainProcess();
-    }
-
-    @Override
-    public boolean isPreparationRequired() {
-        return false;
+    public String getName() {
+        return "强制使用默认消息气泡";
     }
 
     @Nullable
     @Override
-    public Step[] makePreparationSteps() {
-        return null;
-    }
-
-    @Override
-    public boolean isApplicationRestartRequired() {
-        return false;
-    }
-
-    @NonNull
-    @Override
-    public Function1<IUiItemAgent, String> getTitleProvider() {
-        return agent -> "强制使用默认消息气泡";
-    }
-
-    @Nullable
-    @Override
-    public Function2<IUiItemAgent, Context, CharSequence> getSummaryProvider() {
-        return null;
-    }
-
-    @Nullable
-    @Override
-    public MutableStateFlow<String> getValueState() {
-        return null;
-    }
-
-    @Nullable
-    @Override
-    public Function1<IUiItemAgent, Boolean> getValidator() {
-        return null;
-    }
-
-    @Nullable
-    @Override
-    public ISwitchCellAgent getSwitchProvider() {
-        return switchCellAgent;
-    }
-
-    @Nullable
-    @Override
-    public Function3<IUiItemAgent, Activity, View, Unit> getOnClickListener() {
-        return null;
-    }
-
-    @Nullable
-    @Override
-    public Function2<IUiItemAgent, Context, String[]> getExtraSearchKeywordProvider() {
-        return null;
-    }
-
-    @NonNull
-    @Override
-    public IUiItemAgent getUiItemAgent() {
-        return this;
+    public String[] getExtraSearchKeywords() {
+        return new String[]{"默认气泡"};
     }
 
     @NonNull
@@ -216,9 +134,4 @@ public class DefaultBubbleHook implements IDynamicHook, IUiItemAgentProvider, IU
         return Simplify.CHAT_DECORATION;
     }
 
-    @NonNull
-    @Override
-    public String getItemAgentProviderUniqueIdentifier() {
-        return getClass().getName();
-    }
 }

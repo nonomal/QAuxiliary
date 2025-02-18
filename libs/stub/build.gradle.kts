@@ -12,4 +12,9 @@ android {
             res.setSrcDirs(listOf("qq-stub/src/main/res"))
         }
     }
+
+    dependencies {
+        // androidx nullability stubs
+        compileOnly(libs.androidx.annotation)
+    }
 }

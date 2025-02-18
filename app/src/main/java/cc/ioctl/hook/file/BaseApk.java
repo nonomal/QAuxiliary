@@ -22,6 +22,7 @@
 package cc.ioctl.hook.file;
 
 import static io.github.qauxv.util.QQVersion.QQ_8_6_0;
+import static io.github.qauxv.util.QQVersion.QQ_8_9_63_BETA_11345;
 
 import android.app.Activity;
 import android.content.pm.ApplicationInfo;
@@ -34,14 +35,17 @@ import androidx.annotation.Nullable;
 import cc.ioctl.dialog.RikkaBaseApkFormatDialog;
 import cc.ioctl.util.HookUtils;
 import cc.ioctl.util.HostInfo;
-import de.robv.android.xposed.XC_MethodHook;
-import de.robv.android.xposed.XposedHelpers;
 import io.github.qauxv.base.IUiItemAgent;
 import io.github.qauxv.base.annotation.FunctionHookEntry;
 import io.github.qauxv.base.annotation.UiItemAgentEntry;
 import io.github.qauxv.dsl.FunctionEntryRouter.Locations.Auxiliary;
 import io.github.qauxv.hook.CommonConfigFunctionHook;
 import io.github.qauxv.util.Initiator;
+import io.github.qauxv.util.dexkit.DexKit;
+import io.github.qauxv.util.dexkit.DexKitTarget;
+import io.github.qauxv.util.dexkit.TroopSendFile_QQNT;
+import io.github.qauxv.util.xpcompat.XC_MethodHook;
+import io.github.qauxv.util.xpcompat.XposedHelpers;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.lang.reflect.Field;
@@ -50,7 +54,8 @@ import java.lang.reflect.Modifier;
 import kotlin.Unit;
 import kotlin.jvm.functions.Function3;
 import kotlinx.coroutines.flow.MutableStateFlow;
-//重命名base.apk
+
+//重命名 APK
 @FunctionHookEntry
 @UiItemAgentEntry
 public class BaseApk extends CommonConfigFunctionHook {
@@ -58,13 +63,13 @@ public class BaseApk extends CommonConfigFunctionHook {
     public static final BaseApk INSTANCE = new BaseApk();
 
     private BaseApk() {
-        super();
+        super(new DexKitTarget[]{TroopSendFile_QQNT.INSTANCE});
     }
 
     @NonNull
     @Override
     public String getName() {
-        return "重命名 base.apk";
+        return "重命名 APK";
     }
 
     @NonNull
@@ -91,7 +96,34 @@ public class BaseApk extends CommonConfigFunctionHook {
 
     @Override
     public boolean initOnce() throws Exception {
-        if (HostInfo.requireMinQQVersion(QQ_8_6_0)) {
+        if (HostInfo.requireMinQQVersion(QQ_8_9_63_BETA_11345)) {
+            HookUtils.hookBeforeIfEnabled(this, DexKit.requireMethodFromCache(TroopSendFile_QQNT.INSTANCE), param -> {
+                Field[] fs = param.thisObject.getClass().getDeclaredFields();
+                Field f = null;
+                for (Field field : fs) {
+                    field.setAccessible(true);
+                    if (field.get(param.thisObject).getClass().getName().contains("TroopFileTransferManager$Item")) {
+                        f = field;
+                        break;
+                    }
+                }
+                Object item = f.get(param.thisObject);
+                Field fileName = item.getClass().getSuperclass().getDeclaredField("FileName");
+                if (isBaseApk((String) fileName.get(item))) {
+                    String localFile = (String) item.getClass().getSuperclass().getDeclaredField("LocalFile").get(item);
+                    File file = new File(localFile);
+                    if (!file.exists()) {
+                        throw new FileNotFoundException("file not found: path='" + localFile + "'");
+                    }
+                    fileName.set(item, getFormattedFileNameByPath(localFile));
+                } else if (RikkaBaseApkFormatDialog.IsAlwaysAPKEnabled()) {
+                    String fn = (String) fileName.get(item);
+                    if (fn.endsWith(".apk")) {
+                        fileName.set(item, replaceLast(fn, ".apk", ".APK"));
+                    }
+                }
+            });
+        } else if (HostInfo.requireMinQQVersion(QQ_8_6_0)) {
             Class c = Initiator.load("com.tencent.mobileqq.utils.FileUtils");
             XposedHelpers.findAndHookMethod(c, "getFileName", String.class, new XC_MethodHook() {
                 @Override
@@ -103,68 +135,47 @@ public class BaseApk extends CommonConfigFunctionHook {
                             // not a file path to upload, maybe someone has sent MessageForFile
                             return;
                         }
-                        if (fileName.equals("base.apk")) {
-                            PackageManager packageManager = HostInfo.getApplication().getPackageManager();
+                        if (isBaseApk(fileName)) {
                             File file = new File(localFile);
                             if (!file.exists()) {
                                 throw new FileNotFoundException("file not found: path='" + localFile + "', name='" + fileName + "'");
                             }
-                            PackageInfo packageArchiveInfo = packageManager.getPackageArchiveInfo(localFile,
-                                    PackageManager.GET_ACTIVITIES);
-                            ApplicationInfo applicationInfo = packageArchiveInfo.applicationInfo;
-                            applicationInfo.sourceDir = localFile;
-                            applicationInfo.publicSourceDir = localFile;
-                            String format = RikkaBaseApkFormatDialog.getCurrentBaseApkFormat();
-                            if (format != null) {
-                                String result = format
-                                        .replace("%n", applicationInfo.loadLabel(packageManager).toString())
-                                        .replace("%p", applicationInfo.packageName)
-                                        .replace("%v", packageArchiveInfo.versionName)
-                                        .replace("%c", String.valueOf(packageArchiveInfo.versionCode));
-                                param.setResult(result);
-                            }
+                            param.setResult(getFormattedFileNameByPath(localFile));
                         }
                     } catch (Exception e) {
                         traceError(e);
                     }
                 }
             });
-            return true;
-        }
-        final Class<?> _ItemManagerClz = Initiator.load(
-                "com.tencent.mobileqq.troop.utils.TroopFileTransferManager$Item");
-        for (Method m : Initiator._TroopFileUploadMgr().getDeclaredMethods()) {
-            if (Modifier.isPrivate(m.getModifiers()) && !Modifier.isStatic(m.getModifiers())
-                    && m.getReturnType().equals(int.class)) {
-                Class<?>[] argt = m.getParameterTypes();
-                if (argt.length == 3 && argt[0] == long.class
-                        && argt[1] == _ItemManagerClz && argt[2] == Bundle.class) {
-                    HookUtils.hookBeforeIfEnabled(this, m, param -> {
-                        Object item = param.args[1];
-                        Field localFile = XposedHelpers.findField(_ItemManagerClz, "LocalFile");
-                        Field fileName = XposedHelpers.findField(_ItemManagerClz, "FileName");
-                        if (fileName.get(item).equals("base.apk")) {
-                            PackageManager packageManager = HostInfo.getApplication().getPackageManager();
-                            PackageInfo packageArchiveInfo = packageManager
-                                    .getPackageArchiveInfo((String) localFile.get(item), PackageManager.GET_ACTIVITIES);
-                            ApplicationInfo applicationInfo = packageArchiveInfo.applicationInfo;
-                            applicationInfo.sourceDir = (String) localFile.get(item);
-                            applicationInfo.publicSourceDir = (String) localFile.get(item);
-                            String format = RikkaBaseApkFormatDialog.getCurrentBaseApkFormat();
-                            if (format != null) {
-                                String result = format
-                                        .replace("%n", applicationInfo.loadLabel(packageManager).toString())
-                                        .replace("%p", applicationInfo.packageName)
-                                        .replace("%v", packageArchiveInfo.versionName)
-                                        .replace("%c", String.valueOf(packageArchiveInfo.versionCode));
-                                fileName.set(item, result);
+        } else {
+            final Class<?> _ItemManagerClz = Initiator.load(
+                    "com.tencent.mobileqq.troop.utils.TroopFileTransferManager$Item");
+            for (Method m : Initiator._TroopFileUploadMgr().getDeclaredMethods()) {
+                if (Modifier.isPrivate(m.getModifiers()) && !Modifier.isStatic(m.getModifiers())
+                        && m.getReturnType().equals(int.class)) {
+                    Class<?>[] argt = m.getParameterTypes();
+                    if (argt.length == 3 && argt[0] == long.class
+                            && argt[1] == _ItemManagerClz && argt[2] == Bundle.class) {
+                        HookUtils.hookBeforeIfEnabled(this, m, param -> {
+                            Object item = param.args[1];
+                            Field localFile = XposedHelpers.findField(_ItemManagerClz, "LocalFile");
+                            Field fileName = XposedHelpers.findField(_ItemManagerClz, "FileName");
+                            if (isBaseApk((String) fileName.get(item))) {
+                                fileName.set(item, getFormattedFileNameByPath((String) localFile.get(item)));
                             }
-                        }
-                    });
+                        });
+                    }
                 }
             }
         }
         return true;
+    }
+
+    private static boolean isBaseApk(String name) {
+        if (name == null) {
+            return false;
+        }
+        return name.matches(RikkaBaseApkFormatDialog.getCurrentBaseApkRegex());
     }
 
     @Override
@@ -175,5 +186,31 @@ public class BaseApk extends CommonConfigFunctionHook {
     @Override
     public void setEnabled(boolean enabled) {
         // nop
+    }
+
+    private String getFormattedFileNameByPath(String path) {
+        PackageManager packageManager = HostInfo.getApplication().getPackageManager();
+        PackageInfo packageArchiveInfo = packageManager
+                .getPackageArchiveInfo(path, PackageManager.GET_ACTIVITIES);
+        ApplicationInfo applicationInfo = packageArchiveInfo.applicationInfo;
+        applicationInfo.sourceDir = path;
+        applicationInfo.publicSourceDir = path;
+        String format = RikkaBaseApkFormatDialog.getCurrentBaseApkFormat();
+        String result;
+        if (format != null) {
+            result = format
+                    .replace("%n", applicationInfo.loadLabel(packageManager).toString())
+                    .replace("%p", applicationInfo.packageName)
+                    .replace("%v", packageArchiveInfo.versionName)
+                    .replace("%c", String.valueOf(packageArchiveInfo.versionCode));
+        } else {
+            throw new RuntimeException("format is null");
+        }
+        return result;
+    }
+
+    public static String replaceLast(String str, String target, String replacement) {
+        // 使用正则表达式匹配最后一个目标子字符串，并替换为新字符串
+        return str.replaceFirst("(?s)(.*)" + target, "$1" + replacement);
     }
 }

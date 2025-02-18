@@ -33,8 +33,10 @@ import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.widget.EditText
 import android.widget.LinearLayout
 import androidx.appcompat.app.AlertDialog
+import cc.hicore.QApp.QAppUtils
 import cc.ioctl.util.LayoutHelper
 import cc.ioctl.util.ui.FaultyDialog
+import io.github.qauxv.base.IEntityAgent
 import io.github.qauxv.base.ISwitchCellAgent
 import io.github.qauxv.base.IUiItemAgent
 import io.github.qauxv.base.IUiItemAgentProvider
@@ -47,8 +49,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 
 @UiItemAgentEntry
 object OpenFriendChatHistory : IUiItemAgent, IUiItemAgentProvider {
-    override val titleProvider: (IUiItemAgent) -> String = { "打开好友聊天记录" }
-    override val summaryProvider: ((IUiItemAgent, Context) -> String?) = { _, _ -> "仅支持本地聊天记录" }
+    override val titleProvider: (IEntityAgent) -> String = { "打开好友聊天记录" }
+    override val summaryProvider: ((IEntityAgent, Context) -> String?) = { _, _ -> "仅支持本地聊天记录" }
     override val valueState: MutableStateFlow<String?>? = null
     override val validator: ((IUiItemAgent) -> Boolean)? = null
     override val switchProvider: ISwitchCellAgent? = null
@@ -67,7 +69,7 @@ object OpenFriendChatHistory : IUiItemAgent, IUiItemAgentProvider {
         val linearLayout = LinearLayout(ctx)
         linearLayout.addView(editText, LayoutHelper.newLinearLayoutParams(MATCH_PARENT, WRAP_CONTENT))
         val alertDialog = AlertDialog.Builder(ctx)
-            .setTitle("输入对方 QQ 号")
+            .setTitle("请输入对方 qq 或 uid ")
             .setView(linearLayout)
             .setCancelable(true)
             .setPositiveButton("确认", null)
@@ -78,45 +80,78 @@ object OpenFriendChatHistory : IUiItemAgent, IUiItemAgentProvider {
             .setOnClickListener {
                 val text = editText.text.toString()
                 if (TextUtils.isEmpty(text)) {
-                    Toasts.error(ctx, "请输入 QQ 号")
+                    Toasts.error(ctx, "请输入 qq 或 uid")
                     return@setOnClickListener
                 }
-                var uin: Long = 0
                 try {
-                    uin = text.toLong()
+                    val uin = text.toLong()
+                    if (uin < 10000) {
+                        Toasts.error(ctx, "请输入有效的 qq")
+                        return@setOnClickListener
+                    }
+                    startFriendChatHistoryActivity(ctx, uin)
                 } catch (ignored: NumberFormatException) {
-                }
-                if (uin < 10000) {
-                    Toasts.error(ctx, "请输入有效的 QQ 号")
-                    return@setOnClickListener
+                    val uid = text
+                    if (!(uid.startsWith("u_") && uid.length == 24)) {
+                        Toasts.error(ctx, "请输入有效的 uid")
+                        return@setOnClickListener
+                    }
+                    startFriendChatHistoryActivity(ctx, uid)
                 }
                 alertDialog.dismiss()
-                startFriendChatHistoryActivity(ctx, uin)
             }
-    }
-
-    @JvmStatic
-    fun startFriendChatHistoryActivity(context: Context, uin: String) {
-        try {
-            startFriendChatHistoryActivity(context, uin.toLong())
-        } catch (e: NumberFormatException) {
-            return
-        }
     }
 
     @JvmStatic
     fun startFriendChatHistoryActivity(context: Context, uin: Long) {
         if (uin < 10000L) return
         try {
-            val kChatHistoryActivity = Initiator.loadClass("com.tencent.mobileqq.activity.history.ChatHistoryActivity")
-            val intent = Intent(context, kChatHistoryActivity).apply {
-                putExtra("uin", uin.toString())
-                putExtra("SissionUin", uin.toString())
-                putExtra("uintype", 0)
-                putExtra("TargetTabPos", 0)
-                putExtra("FromType", 3011)
+            startFriendChatHistory(context, uin.toString(), false)
+        } catch (e: NumberFormatException) {
+            return
+        }
+    }
+
+    @JvmStatic
+    fun startFriendChatHistoryActivity(context: Context, uid: String) {
+        if (!(uid.startsWith("u_") && uid.length == 24)) return
+        try {
+            startFriendChatHistory(context, uid, true)
+        } catch (e: NumberFormatException) {
+            return
+        }
+    }
+
+    private fun startFriendChatHistory(context: Context, userUinOrUid: String, isUid: Boolean) {
+        try {
+            if (QAppUtils.isQQnt()) {
+                val peerId = if (isUid) userUinOrUid else QAppUtils.UserUinToPeerID(userUinOrUid)
+                if (peerId == null) {
+                    FaultyDialog.show(context, "打开好友聊天记录错误", "无法获取 peerId")
+                    return
+                }
+                val kNTChatHistoryActivity = Initiator.loadClass("com.tencent.mobileqq.activity.history.NTChatHistoryActivity")
+                val intent = Intent(context, kNTChatHistoryActivity).apply {
+                    //putExtra("nt_chat_history_session_name", name)    //显示在标题栏的昵称
+                    putExtra("nt_chat_history_peerId", peerId)
+                    putExtra("nt_chat_history_chatType", 1)
+                }
+                context.startActivity(intent)
+            } else {
+                if (isUid) {
+                    FaultyDialog.show(context, "打开好友聊天记录错误", "非 QQNT 版本无法使用 uid 打开")
+                    return
+                }
+                val kChatHistoryActivity = Initiator.loadClass("com.tencent.mobileqq.activity.history.ChatHistoryActivity")
+                val intent = Intent(context, kChatHistoryActivity).apply {
+                    putExtra("uin", userUinOrUid)
+                    putExtra("SissionUin", userUinOrUid)
+                    putExtra("uintype", 0)
+                    putExtra("TargetTabPos", 0)
+                    putExtra("FromType", 3011)
+                }
+                context.startActivity(intent)
             }
-            context.startActivity(intent)
         } catch (e: Exception) {
             FaultyDialog.show(context, "打开好友聊天记录错误", e)
         }
